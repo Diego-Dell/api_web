@@ -1,0 +1,21 @@
+## .NET e IDEs
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+.vscode/
+
+## Archivos de compilación
+*.dll
+*.pdb
+*.exe
+
+## Logs
+*.log
+
+## Configuración local sensible
+appsettings.*.local.json
