@@ -30,7 +30,6 @@ public class FichasController : ControllerBase
         _fichas = fichas;
     }
 
-    // GET: api/fichas/granja/{granjaId}?conBajas=true
     /// <summary>2. Lista el ganado de la granja; sin conBajas solo devuelve los animales activos.</summary>
     [HttpGet("granja/{granjaId:guid}")]
     [ProducesResponseType<List<FichaDto>>(StatusCodes.Status200OK)]
@@ -48,7 +47,6 @@ public class FichasController : ControllerBase
         return Ok(lista.Select(FichaDto.Desde));
     }
 
-    // GET: api/fichas/{id}
     /// <summary>3. Devuelve el detalle de una ficha, también si el animal está dado de baja.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType<FichaDto>(StatusCodes.Status200OK)]
@@ -62,7 +60,6 @@ public class FichasController : ControllerBase
         return Ok(FichaDto.Desde(ficha));
     }
 
-    // POST: api/fichas
     /// <summary>4. Crea una ficha en la granja indicada.</summary>
     [HttpPost]
     [ProducesResponseType<FichaDto>(StatusCodes.Status201Created)]
@@ -101,7 +98,6 @@ public class FichasController : ControllerBase
         return CreatedAtAction(nameof(ObtenerDetalle), new { id = ficha.Id }, FichaDto.Desde(ficha));
     }
 
-    // PUT: api/fichas/{id}
     /// <summary>5. Edita los datos generales; el id no cambia, así los registros del animal siguen vinculados.</summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType<FichaDto>(StatusCodes.Status200OK)]
@@ -138,7 +134,6 @@ public class FichasController : ControllerBase
         return Ok(FichaDto.Desde(ficha));
     }
 
-    // POST: api/fichas/{id}/baja
     /// <summary>6. Da de baja al animal con fecha y motivo; la ficha y su historial se conservan.</summary>
     [HttpPost("{id:guid}/baja")]
     [ProducesResponseType<FichaDto>(StatusCodes.Status200OK)]

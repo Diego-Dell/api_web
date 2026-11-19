@@ -26,7 +26,7 @@ public class FichaGanadoConfiguracion : IEntityTypeConfiguration<FichaGanado>
         entidad.Property(f => f.MotivoBaja).HasColumnName("motivo_baja");
         entidad.Ignore(f => f.DadoDeBaja);
 
-        // 2. La base ya tiene esta restricción; aquí solo se describe para EF.
+        // 1.2. La base ya tiene esta restricción; aquí solo se describe para EF.
         entidad.HasIndex(f => new { f.GranjaId, f.Identificacion }).IsUnique();
     }
 }

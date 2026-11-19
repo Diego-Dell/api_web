@@ -6,21 +6,20 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// =============================================================================
-// Configuración de Conexión a Base de Datos (Supabase / Render)
-// =============================================================================
+// 1. Lee la conexión a la base de datos (Supabase o Render); DATABASE_URL tiene prioridad.
 var rawConnectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
     ?? builder.Configuration.GetConnectionString("SupabaseConnection")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
 string connectionString = rawConnectionString ?? "Host=localhost;Port=5432;Database=VetLinkDb;Username=postgres;Password=postgres";
 
-// Conversión para URL en formato postgres:// o postgresql:// (la que copia Supabase en Connect)
+// 2. Convierte la URL postgres:// o postgresql:// (la que copia Supabase en Connect) al formato de Npgsql.
 if (connectionString.StartsWith("postgres://") || connectionString.StartsWith("postgresql://"))
 {
     var uri = new Uri(connectionString);
     var userInfo = uri.UserInfo.Split(':', 2);
-    // El constructor escapa la contraseña aunque traiga caracteres como ; o =.
+
+    // 2.1. El constructor escapa la contraseña aunque traiga caracteres como ; o =.
     connectionString = new Npgsql.NpgsqlConnectionStringBuilder
     {
         Host = uri.Host,
@@ -32,19 +31,16 @@ if (connectionString.StartsWith("postgres://") || connectionString.StartsWith("p
     }.ConnectionString;
 }
 
+// 3. Registra el contexto de datos; la columna etapa de las fichas usa el enum etapa de Postgres.
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    // Integrante 1: la columna etapa usa el enum etapa de Postgres.
     options.UseNpgsql(connectionString, npgsql => npgsql.MapEnum<EtapaFicha>("etapa"));
 });
 
-// Integrante 1: reglas de acceso a las fichas, también disponibles para los demás módulos.
+// 4. Registra las reglas de acceso a las fichas, también disponibles para los demás módulos.
 builder.Services.AddScoped<FichasServicio>();
 
-// =============================================================================
-// Autenticación con los tokens de Supabase Auth
-// =============================================================================
-// La app envía el token de la sesión en Authorization: Bearer; aquí se valida con las claves públicas del proyecto.
+// 5. Valida el token de Supabase Auth que la app envía en Authorization: Bearer, con las claves públicas del proyecto.
 var supabaseUrl = (Environment.GetEnvironmentVariable("SUPABASE_URL") ?? builder.Configuration["Supabase:Url"])?.TrimEnd('/')
     ?? throw new InvalidOperationException("Falta la URL de Supabase (Supabase:Url o SUPABASE_URL).");
 
@@ -58,14 +54,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
-// =============================================================================
-// Servicios de Controladores y Swagger
-// =============================================================================
+// 6. Registra los controladores y Swagger.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configuración de CORS para frontend / Render
+// 7. Permite llamadas desde cualquier origen (frontend o Render).
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -78,9 +72,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// =============================================================================
-// Pipeline HTTP
-// =============================================================================
+// 8. Arma el pipeline HTTP.
 app.UseCors("AllowAll");
 
 if (app.Environment.IsDevelopment())
@@ -90,7 +82,7 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // También disponible en producción para pruebas en Render
+    // 8.1. Swagger también queda disponible en producción para probar en Render.
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
@@ -102,12 +94,10 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// =============================================================================
-// Mapeo de Controladores y Endpoints
-// =============================================================================
+// 9. Mapea los controladores de los cuatro integrantes.
 app.MapControllers();
 
-// Endpoint de verificación (útil para Render Health Check)
+// 10. Responde la verificación de salud que usa Render.
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow }));
 
 app.Run();

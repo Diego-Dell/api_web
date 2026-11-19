@@ -13,7 +13,7 @@ public class CrearFichaDto
 
     public string? Raza { get; set; }
 
-    /// <summary>ternera, vaquilla o vaca.</summary>
+    /// <summary>1.1. Acepta ternera, vaquilla o vaca.</summary>
     public string Etapa { get; set; } = string.Empty;
 
     public DateOnly? Nacimiento { get; set; }
@@ -30,7 +30,7 @@ public class EditarFichaDto
 
     public string? Raza { get; set; }
 
-    /// <summary>ternera, vaquilla o vaca.</summary>
+    /// <summary>1.1. Acepta ternera, vaquilla o vaca.</summary>
     public string Etapa { get; set; } = string.Empty;
 
     public DateOnly? Nacimiento { get; set; }
