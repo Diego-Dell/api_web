@@ -7,8 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ApiWeb.Data;
 
 /// <summary>
-/// DbContext principal de la aplicación conectado a Supabase (PostgreSQL).
-/// Contiene los DbSets de los 4 integrantes.
+/// 1. Contexto de datos compartido, conectado a Supabase (PostgreSQL), con las tablas de los 4 integrantes.
 /// </summary>
 public class AppDbContext : DbContext
 {
@@ -17,26 +16,18 @@ public class AppDbContext : DbContext
     {
     }
 
-    // =========================================================================
-    // INTEGRANTE 1 · FICHAS DE GANADO
-    // =========================================================================
+    // 2. Integrante 1 · Fichas de ganado.
     public DbSet<FichaGanado> FichasGanado => Set<FichaGanado>();
 
-    // =========================================================================
-    // INTEGRANTE 2 · CLÍNICA Y REPRODUCCIÓN
-    // =========================================================================
+    // 3. Integrante 2 · Clínica y reproducción.
     public DbSet<AtencionClinica> AtencionesClinicas => Set<AtencionClinica>();
     public DbSet<EventoReproduccion> EventosReproduccion => Set<EventoReproduccion>();
 
-    // =========================================================================
-    // INTEGRANTE 3 · TRATAMIENTOS Y PREVENCIÓN
-    // =========================================================================
+    // 4. Integrante 3 · Tratamientos y prevención.
     public DbSet<Tratamiento> Tratamientos => Set<Tratamiento>();
     public DbSet<PlanPrevencion> PlanesPrevencion => Set<PlanPrevencion>();
 
-    // =========================================================================
-    // INTEGRANTE 4 · CUIDADOS Y APLICACIONES
-    // =========================================================================
+    // 5. Integrante 4 · Cuidados y aplicaciones.
     public DbSet<ObservacionCuidado> ObservacionesCuidados => Set<ObservacionCuidado>();
     public DbSet<AplicacionIndicacion> AplicacionesIndicaciones => Set<AplicacionIndicacion>();
     public DbSet<CorreccionHistorial> CorreccionesHistorial => Set<CorreccionHistorial>();
@@ -45,8 +36,7 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Ejemplo de restricción para Integrante 1 (Identificación única por granja)
-        modelBuilder.Entity<FichaGanado>()
-            .HasIndex(f => new { f.GranjaId, f.Identificacion });
+        // 6. Integrante 1: mapea fichas_bovinas, con identificación única por granja.
+        modelBuilder.ApplyConfiguration(new FichaGanadoConfiguracion());
     }
 }
