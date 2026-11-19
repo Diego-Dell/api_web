@@ -45,8 +45,7 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Ejemplo de restricción para Integrante 1 (Identificación única por granja)
-        modelBuilder.Entity<FichaGanado>()
-            .HasIndex(f => new { f.GranjaId, f.Identificacion });
+        // Integrante 1: fichas_bovinas, con identificación única por granja.
+        modelBuilder.ApplyConfiguration(new FichaGanadoConfiguracion());
     }
 }

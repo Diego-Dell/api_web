@@ -1,4 +1,7 @@
 using ApiWeb.Data;
+using ApiWeb.Integrante1_Fichas.Models;
+using ApiWeb.Integrante1_Fichas.Servicios;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,18 +15,48 @@ var rawConnectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
 
 string connectionString = rawConnectionString ?? "Host=localhost;Port=5432;Database=VetLinkDb;Username=postgres;Password=postgres";
 
-// Conversión para URL en formato postgres:// provista por Render
-if (connectionString.StartsWith("postgres://"))
+// Conversión para URL en formato postgres:// o postgresql:// (la que copia Supabase en Connect)
+if (connectionString.StartsWith("postgres://") || connectionString.StartsWith("postgresql://"))
 {
     var uri = new Uri(connectionString);
-    var userInfo = uri.UserInfo.Split(':');
-    connectionString = $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+    var userInfo = uri.UserInfo.Split(':', 2);
+    // El constructor escapa la contraseña aunque traiga caracteres como ; o =.
+    connectionString = new Npgsql.NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.Port > 0 ? uri.Port : 5432,
+        Database = uri.AbsolutePath.TrimStart('/'),
+        Username = Uri.UnescapeDataString(userInfo[0]),
+        Password = Uri.UnescapeDataString(userInfo.Length > 1 ? userInfo[1] : string.Empty),
+        SslMode = Npgsql.SslMode.Require,
+    }.ConnectionString;
 }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseNpgsql(connectionString);
+    // Integrante 1: la columna etapa usa el enum etapa de Postgres.
+    options.UseNpgsql(connectionString, npgsql => npgsql.MapEnum<EtapaFicha>("etapa"));
 });
+
+// Integrante 1: reglas de acceso a las fichas, también disponibles para los demás módulos.
+builder.Services.AddScoped<FichasServicio>();
+
+// =============================================================================
+// Autenticación con los tokens de Supabase Auth
+// =============================================================================
+// La app envía el token de la sesión en Authorization: Bearer; aquí se valida con las claves públicas del proyecto.
+var supabaseUrl = (Environment.GetEnvironmentVariable("SUPABASE_URL") ?? builder.Configuration["Supabase:Url"])?.TrimEnd('/')
+    ?? throw new InvalidOperationException("Falta la URL de Supabase (Supabase:Url o SUPABASE_URL).");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = $"{supabaseUrl}/auth/v1";
+        options.RequireHttpsMetadata = supabaseUrl.StartsWith("https://");
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters.ValidAudience = "authenticated";
+    });
+builder.Services.AddAuthorization();
 
 // =============================================================================
 // Servicios de Controladores y Swagger
@@ -66,6 +99,7 @@ else
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 
 // =============================================================================

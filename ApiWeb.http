@@ -8,9 +8,58 @@ Accept: application/json
 GET {{ApiWeb_HostAddress}}/swagger/v1/swagger.json
 Accept: application/json
 
-### Integrante 1 · Fichas (Ejemplo futuro)
-# GET {{ApiWeb_HostAddress}}/api/fichas
-# Accept: application/json
+### Integrante 1 · Fichas
+# Reemplaza el token por el access_token de una sesión de Supabase y los ids por los de tu granja y ficha.
+@token = PEGAR_ACCESS_TOKEN
+@granjaId = 00000000-0000-0000-0000-000000000000
+@fichaId = 00000000-0000-0000-0000-000000000000
+
+### Listar el ganado activo de la granja (agrega ?conBajas=true para incluir las bajas)
+GET {{ApiWeb_HostAddress}}/api/fichas/granja/{{granjaId}}
+Authorization: Bearer {{token}}
+
+### Ver el detalle de una ficha
+GET {{ApiWeb_HostAddress}}/api/fichas/{{fichaId}}
+Authorization: Bearer {{token}}
+
+### Crear una ficha (dueño o trabajador)
+POST {{ApiWeb_HostAddress}}/api/fichas
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "granjaId": "{{granjaId}}",
+  "identificacion": "0842",
+  "nombre": "Lucera",
+  "raza": "Holstein",
+  "etapa": "vaca",
+  "nacimiento": "2022-03-10",
+  "nacimientoEstimado": false
+}
+
+### Editar los datos generales (dueño o trabajador)
+PUT {{ApiWeb_HostAddress}}/api/fichas/{{fichaId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "identificacion": "0842",
+  "nombre": "Lucera",
+  "raza": "Holstein",
+  "etapa": "vaca",
+  "nacimiento": "2022-03-10",
+  "nacimientoEstimado": true
+}
+
+### Dar de baja (solo el dueño)
+POST {{ApiWeb_HostAddress}}/api/fichas/{{fichaId}}/baja
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fechaBaja": "2026-11-19",
+  "motivo": "Venta del animal"
+}
 
 ### Integrante 2 · Clínica y Reproducción (Ejemplo futuro)
 # GET {{ApiWeb_HostAddress}}/api/atenciones
