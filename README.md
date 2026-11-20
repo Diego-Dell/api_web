@@ -53,13 +53,11 @@ ApiWeb/
 
 ## ⚙️ Configuración con Supabase (PostgreSQL)
 
-Configurar la cadena privada como variable de entorno `ConnectionStrings__SupabaseConnection`
-o `DATABASE_URL`. No guardar la contraseña en `appsettings.json` ni subirla a Git.
-Ejemplo sin contraseña real:
+En el archivo `appsettings.json`, reemplazar las credenciales por las de su proyecto de Supabase:
 
 ```json
 "ConnectionStrings": {
-  "SupabaseConnection": "Host=HOST_DEL_POOLER;Port=5432;Database=postgres;Username=postgres.PROJECT_REF;Password=CAMBIAR;SSL Mode=Require"
+  "SupabaseConnection": "Host=aws-0-sa-east-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.TU_PROJECT_REF;Password=TU_CONTRASEÑA;SSL Mode=Require;Trust Server Certificate=true"
 }
 ```
 
@@ -83,8 +81,3 @@ Ejemplo sin contraseña real:
 1. Abrir el archivo `ApiWeb.sln` (o `ApiWeb.slnx`) con **Visual Studio 2022**.
 2. Presionar **F5** o hacer clic en **Iniciar depuración** (perfil `https` o `http`).
 3. El navegador abrirá automáticamente la interfaz interactiva de **Swagger UI** (`http://localhost:5000/` o `https://localhost:7001/`).
-
-El módulo del Integrante 4 usa las tablas existentes de Supabase y su migración está
-en `Integrante4_CuidadosAplicaciones/migrations/`. Ya se aplicó al proyecto compartido.
-Las rutas de cuidados y aplicaciones requieren un token de Supabase Auth, que se
-ingresa con el botón **Authorize** de Swagger.
