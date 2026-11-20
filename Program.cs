@@ -3,7 +3,6 @@ using ApiWeb.Integrante1_Fichas.Models;
 using ApiWeb.Integrante1_Fichas.Servicios;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,20 +57,7 @@ builder.Services.AddAuthorization();
 // 6. Registra los controladores y Swagger.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "Token de acceso de Supabase Auth"
-    });
-    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-    });
-});
+builder.Services.AddSwaggerGen();
 
 // 7. Permite llamadas desde cualquier origen (frontend o Render).
 builder.Services.AddCors(options =>

@@ -1,12 +1,16 @@
 namespace ApiWeb.Integrante4_CuidadosAplicaciones.Models;
 
-public sealed class ObservacionCuidado
+public class ObservacionCuidado
 {
-    public Guid Id { get; set; }
-    public Guid FichaId { get; set; }
-    public Guid RegistradoPor { get; set; }
-    public DateTime FechaHora { get; set; }
-    public string Observacion { get; set; } = string.Empty;
-    public string AccionRealizada { get; set; } = string.Empty;
-    public bool Anulado { get; set; }
+    public int Id { get; set; }
+
+    public int AnimalId { get; set; }
+
+    public string LoQueVioElTrabajador { get; set; } = string.Empty;
+
+    public string LoQueHizoElTrabajador { get; set; } = string.Empty;
+
+    public DateTime Fecha { get; set; } = DateTime.UtcNow;
+
+    public string TrabajadorNombre { get; set; } = string.Empty;
 }
