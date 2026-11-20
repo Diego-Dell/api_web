@@ -19,3 +19,6 @@ obj/
 
 ## Configuración local sensible
 appsettings.*.local.json
+
+# Configuración local
+appsettings.Development.json
