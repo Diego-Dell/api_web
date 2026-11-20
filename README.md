@@ -1,83 +1,38 @@
-# VetLink - Proyecto Web API (4 Integrantes)
+# VetLink — Fase 1
 
-Proyecto base desarrollado en **ASP.NET Core (.NET 10)** estructurado para el trabajo colaborativo en equipo de 4 integrantes, con soporte para controladores y Minimal APIs, base de datos en **Supabase (PostgreSQL)** y despliegue en **Render**.
+Base de la Web API de VetLink sobre ASP.NET Core .NET 10, Entity Framework Core 10 y SQL Server LocalDB.
 
----
+## Estructura
 
-## 👥 Distribución del Equipo por Carpetas
-
-Cada integrante cuenta con su propia subcarpeta independiente para evitar conflictos de Git y mantener una separación de responsabilidades clara:
-
-```
-ApiWeb/
-├── Integrante1_Fichas/                 --> Fichas de Ganado (Base para los demás módulos)
-│   ├── Controllers/                    --> Controladores de API
-│   ├── Models/                         --> Entidades y modelos
-│   ├── Dtos/                           --> Requests / Responses DTOs
-│   ├── Endpoints/                      --> Minimal APIs (opcional)
-│   └── README.md                       --> Requisitos específicos del Integrante 1
-│
-├── Integrante2_ClinicaReproduccion/    --> Clínica y Reproducción
-│   ├── Controllers/
-│   ├── Models/
-│   ├── Dtos/
-│   ├── Endpoints/
-│   └── README.md                       --> Requisitos específicos del Integrante 2
-│
-├── Integrante3_TratamientosPrevencion/ --> Tratamientos y Prevención
-│   ├── Controllers/
-│   ├── Models/
-│   ├── Dtos/
-│   ├── Endpoints/
-│   └── README.md                       --> Requisitos específicos del Integrante 3
-│
-└── Integrante4_CuidadosAplicaciones/   --> Cuidados y Aplicaciones
-    ├── Controllers/
-    ├── Models/
-    ├── Dtos/
-    ├── Endpoints/
-    └── README.md                       --> Requisitos específicos del Integrante 4
+```text
+ApiWeb.sln
+ApiWeb.csproj
+Controllers/      (CRUD de fase 2)
+DTOs/             (DTOs de fase 2)
+Data/AppDbContext.cs
+Migrations/       (migraciones EF Core)
+Models/           (diez entidades del diagrama)
+Program.cs
+appsettings.json
 ```
 
----
+Las clases `CambioRegistro` y `OperacionPendiente` quedan para una fase posterior. Los roles se asignan mediante `Vinculacion`; el acceso se inicia por invitaciones. Las bajas y anulaciones son campos de estado para preservar historial. No se modelan códigos de acceso ni períodos de retiro.
 
-## 🗄️ Base de Datos Compartida (`Data/AppDbContext.cs`)
+## Requisitos
 
-- Todo el equipo comparte el mismo contexto de Entity Framework Core ubicado en `Data/AppDbContext.cs`.
-- Cuando un integrante cree una nueva entidad en su carpeta `Models/`, debe agregar la línea de su `DbSet` en `AppDbContext.cs`:
-  ```csharp
-  public DbSet<MiModelo> MisModelos => Set<MiModelo>();
-  ```
+- .NET 10 SDK
+- SQL Server LocalDB (`MSSQLLocalDB`)
+- Herramienta `dotnet-ef` 10
 
----
+La cadena de conexión de ejemplo está en `appsettings.json` y no contiene credenciales reales. Puede sustituirse con `ConnectionStrings:DefaultConnection` en el entorno local.
 
-## ⚙️ Configuración con Supabase (PostgreSQL)
+## Ejecutar
 
-En el archivo `appsettings.json`, reemplazar las credenciales por las de su proyecto de Supabase:
-
-```json
-"ConnectionStrings": {
-  "SupabaseConnection": "Host=aws-0-sa-east-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.TU_PROJECT_REF;Password=TU_CONTRASEÑA;SSL Mode=Require;Trust Server Certificate=true"
-}
+```powershell
+dotnet restore
+dotnet build
+dotnet ef database update
+dotnet run --launch-profile http
 ```
 
-> **Consejo:** Supabase ofrece la cadena en modo **Transaction Pooler (puerto 6543)** o **Session Pooler (puerto 5432)** en la sección *Project Settings > Database > Connection string > URI / .NET*.
-
----
-
-## 🚀 Despliegue en Render
-
-1. El repositorio incluye un `Dockerfile` optimizado y un archivo `render.yaml`.
-2. En Render, crear un nuevo **Web Service** conectado a este repositorio.
-3. En la sección **Environment Variables**, agregar:
-   - `DATABASE_URL`: Cadena de conexión completa de Supabase.
-   - `ASPNETCORE_ENVIRONMENT`: `Production`
-4. Render ejecutará el contenedor y el endpoint de salud estará disponible en `/health` y la documentación interactiva en `/swagger`.
-
----
-
-## 💻 Cómo Ejecutar el Proyecto en Visual Studio
-
-1. Abrir el archivo `ApiWeb.sln` (o `ApiWeb.slnx`) con **Visual Studio 2022**.
-2. Presionar **F5** o hacer clic en **Iniciar depuración** (perfil `https` o `http`).
-3. El navegador abrirá automáticamente la interfaz interactiva de **Swagger UI** (`http://localhost:5000/` o `https://localhost:7001/`).
+Con el perfil `http`, Swagger UI se abre en `http://localhost:5000/swagger`. Esta fase no incluye controladores CRUD ni DTOs de negocio.

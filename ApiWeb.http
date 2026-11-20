@@ -1,25 +1,5 @@
 @ApiWeb_HostAddress = http://localhost:5000
 
-### Verificación de Salud del Servidor
-GET {{ApiWeb_HostAddress}}/health
-Accept: application/json
-
-### Documentación Swagger
+### Swagger OpenAPI document
 GET {{ApiWeb_HostAddress}}/swagger/v1/swagger.json
 Accept: application/json
-
-### Integrante 1 · Fichas (Ejemplo futuro)
-# GET {{ApiWeb_HostAddress}}/api/fichas
-# Accept: application/json
-
-### Integrante 2 · Clínica y Reproducción (Ejemplo futuro)
-# GET {{ApiWeb_HostAddress}}/api/atenciones
-# Accept: application/json
-
-### Integrante 3 · Tratamientos y Prevención (Ejemplo futuro)
-# GET {{ApiWeb_HostAddress}}/api/tratamientos
-# Accept: application/json
-
-### Integrante 4 · Cuidados y Aplicaciones (Ejemplo futuro)
-# GET {{ApiWeb_HostAddress}}/api/cuidados
-# Accept: application/json
