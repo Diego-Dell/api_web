@@ -38,5 +38,9 @@ public class AppDbContext : DbContext
 
         // 6. Integrante 1: mapea fichas_bovinas, con identificación única por granja.
         modelBuilder.ApplyConfiguration(new FichaGanadoConfiguracion());
+        var modulo4 = new CuidadosAplicacionesConfiguracion();
+        modelBuilder.ApplyConfiguration<AplicacionIndicacion>(modulo4);
+        modelBuilder.ApplyConfiguration<ObservacionCuidado>(modulo4);
+        modelBuilder.ApplyConfiguration<CorreccionHistorial>(modulo4);
     }
 }
