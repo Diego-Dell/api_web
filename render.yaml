@@ -1,0 +1,14 @@
+# 1. Blueprint de Render: crea el servicio web gratuito desde el Dockerfile.
+services:
+  - type: web
+    name: vetlink-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # 2. Se completan en el panel de Render; nunca se guardan en el repositorio.
+      - key: SUPABASE_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
