@@ -153,16 +153,37 @@ app.Run();
 // 13. Acepta la cadena de Supabase en formato URI (postgresql://...) o clave=valor.
 static string Conexion(string valor)
 {
-    if (!valor.StartsWith("postgres://") && !valor.StartsWith("postgresql://")) return valor;
-    var uri = new Uri(valor);
-    var usuario = uri.UserInfo.Split(':', 2);
-    return new NpgsqlConnectionStringBuilder
+    valor = valor.Trim();
+    var builder = new NpgsqlConnectionStringBuilder();
+    if (valor.StartsWith("postgres://") || valor.StartsWith("postgresql://"))
     {
-        Host = uri.Host,
-        Port = uri.Port > 0 ? uri.Port : 5432,
-        Database = uri.AbsolutePath.TrimStart('/'),
-        Username = Uri.UnescapeDataString(usuario[0]),
-        Password = usuario.Length > 1 ? Uri.UnescapeDataString(usuario[1]) : null,
-        SslMode = SslMode.Require,
-    }.ConnectionString;
+        // 14. Se separa a mano: la contraseña puede tener @ : / # ? sin codificar.
+        var resto = valor[(valor.IndexOf("://") + 3)..];
+        var arroba = resto.LastIndexOf('@');
+        var credenciales = resto[..arroba];
+        var servidor = resto[(arroba + 1)..];
+        var dosPuntos = credenciales.IndexOf(':');
+        var barra = servidor.IndexOf('/');
+        var direccion = barra < 0 ? servidor : servidor[..barra];
+        var baseDatos = barra < 0 ? "postgres" : servidor[(barra + 1)..].Split('?')[0];
+        var puerto = direccion.LastIndexOf(':');
+        builder.Host = puerto < 0 ? direccion : direccion[..puerto];
+        builder.Port = puerto < 0 ? 5432 : int.Parse(direccion[(puerto + 1)..]);
+        builder.Database = baseDatos.Length == 0 ? "postgres" : baseDatos;
+        builder.Username = Uri.UnescapeDataString(dosPuntos < 0 ? credenciales : credenciales[..dosPuntos]);
+        builder.Password = dosPuntos < 0 ? null : Desescapar(credenciales[(dosPuntos + 1)..]);
+    }
+    else builder.ConnectionString = valor;
+
+    // 15. Supabase exige SSL; Kerberos (GSS) no se usa y su librería no está en la imagen.
+    builder.SslMode = SslMode.Require;
+    builder.GssEncryptionMode = GssEncryptionMode.Disable;
+    return builder.ConnectionString;
+}
+
+// 16. Decodifica %XX solo si la contraseña venía codificada; si no, la deja igual.
+static string Desescapar(string texto)
+{
+    try { return Uri.UnescapeDataString(texto); }
+    catch (UriFormatException) { return texto; }
 }
