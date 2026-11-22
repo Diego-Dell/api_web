@@ -74,6 +74,8 @@ public sealed class FichasBovinasController(AppDbContext db) : ControllerBase
         var f = await db.FichasBovinas.FindAsync([id], ct);
         if (f is null) return NotFound();
         if (f.FechaBaja is not null) return Conflict("La ficha ya fue dada de baja.");
+        var rol = await RolActual(f.GranjaId, ct);
+        if (!PermisosFicha.PuedeEditar(rol, f.Etapa, dto.Etapa)) return Forbid();
         var error = Validar(dto.Identificacion, dto.Etapa, dto.Nacimiento);
         if (error is not null) return BadRequest(error);
         if (await Duplicada(f.GranjaId, dto.Identificacion.Trim(), id, ct))
@@ -85,6 +87,29 @@ public sealed class FichasBovinasController(AppDbContext db) : ControllerBase
         catch (DbUpdateException ex) when (EsDuplicado(ex))
         { return BadRequest("La identificación ya existe en esta granja."); }
         return NoContent();
+    }
+
+    // Solo actualiza la etapa: no recibe ni sobrescribe otros datos de la ficha.
+    [HttpPatch("{id:guid}/etapa")]
+    public async Task<IActionResult> ActualizarEtapa(Guid id, EtapaFichaDto dto, CancellationToken ct)
+    {
+        var f = await db.FichasBovinas.FindAsync([id], ct);
+        if (f is null) return NotFound();
+        if (f.FechaBaja is not null) return Conflict("La ficha ya fue dada de baja.");
+        if (!PermisosFicha.PuedeCambiarEtapa(await RolActual(f.GranjaId, ct))) return Forbid();
+        if (dto.Etapa is null || !Enum.IsDefined(dto.Etapa.Value)) return BadRequest("La etapa no es válida.");
+        f.Etapa = dto.Etapa.Value;
+        f.Version++;
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    private async Task<string?> RolActual(Guid granjaId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var cuentaId)) return null;
+        if (!await db.Cuentas.AnyAsync(c => c.Id == cuentaId && c.Activa, ct)) return null;
+        return await db.Vinculaciones.Where(v => v.GranjaId == granjaId && v.CuentaId == cuentaId && v.Activa)
+            .Select(v => v.Rol).FirstOrDefaultAsync(ct);
     }
 
     [HttpDelete("{id:guid}")]

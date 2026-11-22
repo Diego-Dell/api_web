@@ -32,3 +32,8 @@ public sealed class BajaFichaDto
 {
     [Required, MinLength(3)] public string Motivo { get; set; } = string.Empty;
 }
+
+public sealed class EtapaFichaDto
+{
+    [Required] public Etapa? Etapa { get; set; }
+}
