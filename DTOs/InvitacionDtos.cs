@@ -21,5 +21,5 @@ public sealed class ActualizarInvitacionDto
     public bool Vigente { get; set; }
 }
 
-public sealed record InvitacionDto(Guid Id, Guid GranjaId, Guid EmitidaPorCuentaId, string Rol,
-    bool Vigente, bool Aceptada, string CorreoDestinatario, DateTime FechaVencimiento);
+public sealed record InvitacionDto(Guid Id, Guid GranjaId, Guid? EmitidaPorCuentaId, string Rol,
+    bool Vigente, bool Aceptada, string CorreoDestinatario, DateTime? FechaVencimiento);

@@ -2,7 +2,7 @@ using ApiWeb.Data;
 using ApiWeb.DTOs;
 using ApiWeb.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApiWeb.Controllers;
@@ -13,9 +13,12 @@ public sealed class FichasBovinasController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(List<FichaBovinaDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<FichaBovinaDto>>> Listar(CancellationToken ct)
+    public async Task<ActionResult<List<FichaBovinaDto>>> Listar([FromQuery] Guid? granjaId, CancellationToken ct)
     {
-        var fichas = await db.FichasBovinas.AsNoTracking().OrderBy(f => f.Identificacion)
+        // 1. Con granjaId lista solo el ganado de esa granja; las políticas RLS ocultan las granjas ajenas.
+        var fichas = await db.FichasBovinas.AsNoTracking()
+            .Where(f => granjaId == null || f.GranjaId == granjaId)
+            .OrderBy(f => f.Identificacion)
             .ToListAsync(ct);
         return Ok(fichas.Select(Map).ToList());
     }
@@ -88,13 +91,15 @@ public sealed class FichasBovinasController(AppDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DarDeBaja(Guid id, [FromQuery] string? motivo,
-        CancellationToken ct)
+        [FromQuery] DateOnly? fecha, CancellationToken ct)
     {
         var f = await db.FichasBovinas.FindAsync([id], ct);
         if (f is null) return NotFound();
+        // 2. La fecha de baja la elige quien la registra; no puede ser futura.
+        if (fecha > DateOnly.FromDateTime(DateTime.UtcNow)) return BadRequest("La fecha de baja no puede ser futura.");
         if (f.FechaBaja is null)
         {
-            f.FechaBaja = DateOnly.FromDateTime(DateTime.UtcNow);
+            f.FechaBaja = fecha ?? DateOnly.FromDateTime(DateTime.UtcNow);
             f.MotivoBaja = string.IsNullOrWhiteSpace(motivo) ? "Baja registrada mediante API" : motivo.Trim();
             f.Version++;
             await db.SaveChangesAsync(ct);
@@ -131,5 +136,5 @@ public sealed class FichasBovinasController(AppDbContext db) : ControllerBase
     }
 
     private static bool EsDuplicado(DbUpdateException ex) =>
-        ex.InnerException is SqlException { Number: 2601 or 2627 };
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 }

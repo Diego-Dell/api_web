@@ -7,7 +7,8 @@ internal static class RolesVetLink
     public const string Veterinario = "Veterinario";
     public const string Trabajador = "Trabajador";
 
-    private static readonly string[] RolesValidos = [Propietario, Administrador, Veterinario, Trabajador];
+    // 1. Supabase guarda dueno, veterinario y trabajador; el administrador técnico es una marca de la cuenta.
+    private static readonly string[] RolesValidos = [Propietario, Veterinario, Trabajador];
 
     public static string? Canonicalizar(string? rol) =>
         RolesValidos.FirstOrDefault(x => string.Equals(x, rol?.Trim(), StringComparison.OrdinalIgnoreCase));
