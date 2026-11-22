@@ -2,7 +2,7 @@ namespace ApiWeb.Models;
 
 // 1. Mismos valores que los tipos enumerados de Supabase (public.etapa, public.tipo_atencion, ...).
 public enum Etapa { Ternera, Vaquilla, Vaca }
-public enum TipoAtencion { Consulta, Diagnostico, Control, Emergencia }
+public enum TipoAtencion { Consulta, Diagnostico, Control, Emergencia, Evolucion }
 public enum TipoEvento { Celo, Inseminacion, Valoracion, Parto, Perdida, Secado }
 public enum Aptitud { Apta, NoApta, EnObservacion }
 public enum Prenez { Prenada, Vacia, NoEvaluada }
