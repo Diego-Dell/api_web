@@ -123,13 +123,17 @@ app.MapGet("/health/base", async (AppDbContext db) =>
     {
         await db.Database.ExecuteSqlRawAsync("select 1");
     }
-    catch (Exception)
+    catch (Exception e)
     {
-        return Results.Json(new { base_de_datos = "sin conexión" }, statusCode: 503);
+        // 11. Solo el tipo de fallo (código de PostgreSQL o clase de error), nunca la cadena de conexión.
+        var causa = e is PostgresException p ? $"{p.SqlState} {p.MessageText}"
+            : e.InnerException is PostgresException q ? $"{q.SqlState} {q.MessageText}"
+            : $"{e.GetType().Name}: {(e.InnerException ?? e).GetType().Name}";
+        return Results.Json(new { base_de_datos = "sin conexión", causa }, statusCode: 503);
     }
     try
     {
-        // 11. Como "anon": si la columna existe falta permiso (42501); si no existe, falta el script (42703).
+        // 12. Como "anon": si la columna existe falta permiso (42501); si no existe, falta el script (42703).
         await db.Database.ExecuteSqlRawAsync("select version from public.fichas_bovinas limit 0");
         return Results.Ok(new { base_de_datos = "conectada", script_api = "aplicado" });
     }
@@ -146,7 +150,7 @@ app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 
 app.Run();
 
-// 12. Acepta la cadena de Supabase en formato URI (postgresql://...) o clave=valor.
+// 13. Acepta la cadena de Supabase en formato URI (postgresql://...) o clave=valor.
 static string Conexion(string valor)
 {
     if (!valor.StartsWith("postgres://") && !valor.StartsWith("postgresql://")) return valor;
