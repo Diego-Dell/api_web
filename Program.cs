@@ -115,11 +115,38 @@ app.MapControllers();
 
 // 9. Rutas públicas: estado del servicio y la página de inicio, que abre Swagger.
 app.MapGet("/health", () => Results.Ok(new { estado = "ok" })).AllowAnonymous();
+
+// 10. Revisa la conexión con Supabase y que el script de la API esté aplicado (sin mostrar datos).
+app.MapGet("/health/base", async (AppDbContext db) =>
+{
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("select 1");
+    }
+    catch (Exception)
+    {
+        return Results.Json(new { base_de_datos = "sin conexión" }, statusCode: 503);
+    }
+    try
+    {
+        // 11. Como "anon": si la columna existe falta permiso (42501); si no existe, falta el script (42703).
+        await db.Database.ExecuteSqlRawAsync("select version from public.fichas_bovinas limit 0");
+        return Results.Ok(new { base_de_datos = "conectada", script_api = "aplicado" });
+    }
+    catch (PostgresException e)
+    {
+        return Results.Ok(new
+        {
+            base_de_datos = "conectada",
+            script_api = e.SqlState == PostgresErrorCodes.UndefinedColumn ? "falta aplicar 2026-11-22_api_web.sql" : "aplicado",
+        });
+    }
+}).AllowAnonymous();
 app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 
 app.Run();
 
-// 10. Acepta la cadena de Supabase en formato URI (postgresql://...) o clave=valor.
+// 12. Acepta la cadena de Supabase en formato URI (postgresql://...) o clave=valor.
 static string Conexion(string valor)
 {
     if (!valor.StartsWith("postgres://") && !valor.StartsWith("postgresql://")) return valor;
