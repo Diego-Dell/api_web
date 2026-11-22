@@ -129,19 +129,7 @@ app.MapGet("/health/base", async (AppDbContext db) =>
         var causa = e is PostgresException p ? $"{p.SqlState} {p.MessageText}"
             : e.InnerException is PostgresException q ? $"{q.SqlState} {q.MessageText}"
             : $"{e.GetType().Name}: {(e.InnerException ?? e).GetType().Name}";
-        // 12. Datos no secretos de la cadena para revisarla; la contraseña nunca se muestra.
-        var datos = new NpgsqlConnectionStringBuilder(conexion);
-        var clave = datos.Password ?? "";
-        var revision = new
-        {
-            usuario = datos.Username,
-            servidor = datos.Host,
-            puerto = datos.Port,
-            contrasena_vacia = clave.Length == 0,
-            contrasena_es_plantilla = clave.Contains("YOUR-PASSWORD") || clave.StartsWith('[') || clave.EndsWith(']'),
-            contrasena_con_espacios = clave != clave.Trim(),
-        };
-        return Results.Json(new { base_de_datos = "sin conexión", causa, revision }, statusCode: 503);
+        return Results.Json(new { base_de_datos = "sin conexión", causa }, statusCode: 503);
     }
     try
     {
