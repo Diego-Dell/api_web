@@ -4,7 +4,7 @@
 
 **VetLink** es un sistema de seguimiento veterinario para granjas lecheras, orientado a centralizar la información sanitaria y reproductiva del ganado bovino mediante fichas individuales.
 
-Esta Web API está desarrollada con ASP.NET Core y permite gestionar los registros del sistema mediante operaciones REST, utilizando SQL Server como base de datos relacional y Entity Framework Core para el acceso a datos y las migraciones.
+Esta Web API está desarrollada con ASP.NET Core y permite gestionar los registros del sistema mediante operaciones REST, utilizando PostgreSQL de Supabase (la misma base central de la app VetLink) y Entity Framework Core para el acceso a datos.
 
 El prototipo se basa en el diagrama de clases del proyecto VetLink e implementa 10 de sus 12 entidades principales, equivalentes al **83,3 % del modelo**.
 
@@ -26,7 +26,9 @@ El prototipo se basa en el diagrama de clases del proyecto VetLink e implementa 
 - **Framework:** ASP.NET Core 10 (.NET 10)
 - **Lenguaje:** C#
 - **ORM:** Entity Framework Core 10
-- **Base de datos:** Microsoft SQL Server
+- **Base de datos:** PostgreSQL en Supabase (Npgsql)
+- **Autenticación:** tokens de Supabase Auth (JWT) y políticas RLS
+- **Despliegue:** Render (Docker)
 - **Documentación y pruebas:** Swagger UI (Swashbuckle)
 - **Entorno de desarrollo:** Visual Studio 2026
 - **Control de versiones:** Git y GitHub
@@ -53,9 +55,7 @@ api_web/
 │   └── Enums.cs
 ├── Data/
 │   ├── AppDbContext.cs
-│   └── DbInitializer.cs
-├── Migrations/
-│   └── Migraciones de Entity Framework Core
+│   └── SesionSupabase.cs
 ├── Properties/
 │   └── launchSettings.json
 ├── Program.cs
@@ -92,146 +92,54 @@ Las entidades `CambioRegistro` y `OperacionPendiente` quedan fuera del alcance d
 
 ## 6. Requisitos previos
 
-Para ejecutar el proyecto se necesita:
-
 - .NET SDK 10.
-- Visual Studio compatible con .NET 10 o Visual Studio 2026.
-- SQL Server o SQL Server LocalDB.
-- Entity Framework Core CLI (`dotnet-ef` versión 10).
-- Navegador web para acceder a Swagger.
+- Un proyecto de Supabase con el esquema de VetLink (`schema.sql`) y el script `2026-11-22_api_web.sql` aplicados.
+- Una cuenta de la app VetLink para obtener un token de acceso.
 
-Para comprobar la instalación:
+## 7. Conexión con Supabase
 
-```powershell
-dotnet --version
-dotnet ef --version
-```
+La API no crea tablas ni usa migraciones: trabaja sobre las tablas de Supabase.
 
-Si no está instalado `dotnet-ef`, ejecutar:
+| Variable | Valor |
+|---|---|
+| `SUPABASE_URL` | URL del proyecto, por ejemplo `https://xxxx.supabase.co` |
+| `DATABASE_URL` | Cadena **Session pooler** de Supabase (Connect > Session pooler), con la contraseña de la base |
 
-```powershell
-dotnet tool install --global dotnet-ef --version 10.0.15
-```
-
-## 7. Configuración de SQL Server
-
-El proyecto utiliza la cadena `DefaultConnection` definida en `appsettings.json`.
-
-**Cadena de conexión de ejemplo:**
+Para ejecutar en local, crear `appsettings.Development.json` (no se sube al repositorio):
 
 ```json
 {
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\MSSQLLocalDB;Database=VetLinkDb;Trusted_Connection=True;TrustServerCertificate=True"
-  }
+  "Supabase": { "Url": "https://xxxx.supabase.co" },
+  "ConnectionStrings": { "Supabase": "postgresql://postgres.xxxx:CONTRASEÑA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres" }
 }
 ```
 
-Esta configuración utiliza SQL Server LocalDB con autenticación de Windows y no contiene credenciales reales.
+### Seguridad
 
-### Utilizar otra instancia SQL Server
+Cada petición lleva `Authorization: Bearer <access_token>` de Supabase. La API valida el token con las llaves públicas del proyecto y ejecuta las consultas como el rol `authenticated` de esa persona, así se aplican las mismas políticas RLS que en la app: nadie ve ni modifica datos de granjas ajenas.
 
-Si se utiliza SQL Server Express o una instancia local diferente, se puede crear un archivo `appsettings.Development.json` con la conexión correspondiente:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=NOMBRE_DEL_SERVIDOR;Database=VetLinkDb;Trusted_Connection=True;TrustServerCertificate=True"
-  }
-}
-```
-
-Reemplazar `NOMBRE_DEL_SERVIDOR` por el nombre de la instancia local.
-
-El archivo `appsettings.Development.json` se utiliza únicamente para la configuración personal y debe permanecer excluido del repositorio Git.
-
-No es necesario crear manualmente las tablas de la base de datos.
+Las cuentas y contraseñas las maneja Supabase Auth; la API solo consulta cuentas y edita el nombre.
 
 ## 8. Instalación y ejecución
 
-**Paso 1. Clonar el repositorio**
-
-```powershell
-git clone https://github.com/Diego-Dell/api_web.git
-cd api_web
-```
-
-**Paso 2. Restaurar dependencias**
-
 ```powershell
 dotnet restore
-```
-
-**Paso 3. Compilar**
-
-```powershell
-dotnet build
-```
-
-**Paso 4. Aplicar migraciones**
-
-```powershell
-dotnet ef database update
-```
-
-Este comando crea o actualiza la base de datos `VetLinkDb` utilizando las migraciones incluidas en `Migrations/`.
-
-**Paso 5. Ejecutar la API**
-
-```powershell
 dotnet run --launch-profile http
 ```
 
-**Paso 6. Abrir Swagger UI**
+Swagger queda en `http://localhost:5000/swagger`. Usar **Authorize** y pegar el token de acceso.
 
-Con la API ejecutándose, abrir:
+### Despliegue en Render
 
-http://localhost:5000/swagger
+1. En Render: **New > Blueprint** y elegir este repositorio (usa `render.yaml` y el `Dockerfile`).
+2. Completar `SUPABASE_URL` y `DATABASE_URL` cuando Render los pida.
+3. Al terminar, `https://<servicio>.onrender.com/health` responde `{"estado":"ok"}` y `/swagger` muestra los endpoints.
 
-El puerto 5000 corresponde al perfil `http` configurado en `Properties/launchSettings.json`.
+El plan gratuito de Render se suspende sin uso; la primera petición después de un rato tarda unos segundos.
 
-Para detener la aplicación, presionar `Ctrl + C` en la terminal.
+## 9. Datos
 
-## 9. Datos de prueba
-
-La aplicación incluye `Data/DbInitializer.cs`, que carga automáticamente datos ficticios cuando se ejecuta en el entorno `Development`.
-
-Los datos se insertan después de aplicar las migraciones, al iniciar la API.
-
-| Entidad | Registros iniciales |
-|---|---:|
-| Cuentas | 3 |
-| Granjas | 2 |
-| Vinculaciones | 3 |
-| Invitaciones | 2 |
-| FichasBovinas | 3 |
-| AtencionesClinicas | 3 |
-| EventosReproductivos | 2 |
-| Tratamientos | 2 |
-| Prevenciones | 3 |
-| Aplicaciones | 2 |
-| **Total** | **25** |
-
-### Granjas de prueba
-
-| Granja | Identificador |
-|---|---|
-| Hacienda Demo | 11111111-1111-1111-1111-111111111111 |
-| Granja Los Pinos | 22222222-2222-2222-2222-222222222222 |
-
-### Fichas bovinas de prueba
-
-| Identificación | Nombre | Etapa | Granja |
-|---|---|---|---|
-| A-001 | Luna | Vaca | Hacienda Demo |
-| A-002 | Mora | Vaquilla | Hacienda Demo |
-| B-001 | Estrella | Ternera | Granja Los Pinos |
-
-Los registros utilizan identificadores GUID fijos para mantener sus relaciones y facilitar las pruebas.
-
-Antes de insertar cada registro, el inicializador comprueba si ya existe por su identificador, evitando duplicar esos datos al reiniciar la aplicación.
-
-Los datos clínicos, tratamientos y aplicaciones son ficticios y se utilizan exclusivamente para comprobar el funcionamiento informático del prototipo.
+Los datos son los de la app VetLink en Supabase. Para probar, crear una granja y fichas desde la app o desde Swagger con una cuenta que pertenezca a la granja.
 
 ## 10. Operaciones de la API
 
@@ -264,11 +172,14 @@ La API debe comprobar:
 Las solicitudes inválidas deben producir respuestas HTTP adecuadas, incluyendo:
 
 - **400 Bad Request:** datos inválidos o referencias no permitidas.
+- **401 Unauthorized:** falta el token de Supabase o no es válido.
+- **403 Forbidden:** el rol de la persona en esa granja no permite la operación.
 - **404 Not Found:** recurso solicitado inexistente.
+- **409 Conflict:** registro repetido.
 
 ## 12. Persistencia de datos
 
-Los datos se almacenan de forma persistente en SQL Server mediante Entity Framework Core.
+Los datos se almacenan de forma persistente en PostgreSQL de Supabase mediante Entity Framework Core.
 
 Para comprobarlo:
 
@@ -280,7 +191,7 @@ Para comprobarlo:
 6. Consultar el registro mediante GET utilizando su ID.
 7. Comprobar la respuesta HTTP 200 y la conservación de la información.
 
-La persistencia depende de SQL Server y no de almacenamiento temporal en memoria.
+La persistencia depende de Supabase y no de almacenamiento temporal en memoria.
 
 ## 13. Evidencias de pruebas
 
@@ -317,4 +228,4 @@ No incluye en esta entrega:
 - Auditoría completa de versiones.
 - Implementación de todas las funcionalidades del sistema final.
 
-El prototipo utiliza SQL Server para facilitar la ejecución local y las pruebas mediante Swagger.
+La API usa la misma base de Supabase que la app, sin duplicar datos en otra base.
