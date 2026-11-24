@@ -17,6 +17,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Tratamiento> Tratamientos => Set<Tratamiento>();
     public DbSet<Prevencion> Prevenciones => Set<Prevencion>();
     public DbSet<Aplicacion> Aplicaciones => Set<Aplicacion>();
+    public DbSet<ObservacionCuidado> ObservacionesCuidados => Set<ObservacionCuidado>();
+    public DbSet<CorreccionCuidado> CorreccionesCuidados => Set<CorreccionCuidado>();
 
     // 2. Los roles de la API (Propietario, Veterinario, Trabajador) se guardan como dueno, veterinario y trabajador.
     private static readonly ValueConverter<string, RolGranja> ConvertirRolGranja = new(
@@ -42,6 +44,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         m.Entity<Tratamiento>().ToTable("tratamientos");
         m.Entity<Prevencion>().ToTable("prevenciones");
         m.Entity<Aplicacion>().ToTable("aplicaciones");
+        m.Entity<ObservacionCuidado>().ToTable("observaciones_cuidados");
+        m.Entity<CorreccionCuidado>().ToTable("correcciones_cuidados");
+        m.Entity<ObservacionCuidado>().Property(x => x.FichaBovinaId).HasColumnName("ficha_id");
+        m.Entity<CorreccionCuidado>().Property(x => x.FichaBovinaId).HasColumnName("ficha_id");
+        m.Entity<CorreccionCuidado>().Property(x => x.DatosAnteriores).HasColumnType("jsonb");
 
         // 4. La contraseña la guarda Supabase Auth, no esta tabla.
         m.Entity<Cuenta>().Ignore(x => x.ClaveHash);

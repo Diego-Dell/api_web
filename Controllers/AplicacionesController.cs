@@ -12,8 +12,12 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<AplicacionDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<AplicacionDto>>> GetAll(CancellationToken cancellationToken) =>
-        Ok(await db.Aplicaciones.AsNoTracking().OrderByDescending(x => x.FechaHoraReal)
+    public async Task<ActionResult<IReadOnlyList<AplicacionDto>>> GetAll([FromQuery] Guid? fichaBovinaId,
+        CancellationToken cancellationToken) =>
+        // 1. Con fichaBovinaId lista solo las aplicaciones de ese animal.
+        Ok(await db.Aplicaciones.AsNoTracking()
+            .Where(x => fichaBovinaId == null || x.FichaBovinaId == fichaBovinaId)
+            .OrderByDescending(x => x.FechaHoraReal)
             .Select(ToProjection()).ToListAsync(cancellationToken));
 
     [HttpGet("{id:guid}")]
@@ -31,6 +35,8 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<AplicacionDto>> Create(CrearAplicacionDto dto, CancellationToken cancellationToken)
     {
+        // 2. Quien aplica es siempre la persona del token.
+        dto.CuentaTrabajadorId = User.CuentaId();
         var validated = await ValidarAplicacion(dto, null, cancellationToken);
         if (validated.Error is not null) return validated.Error;
         var now = DateTimesVetLink.ToUtc(dto.FechaHoraReal);
@@ -48,12 +54,7 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
             VersionIndicacion = validated.VersionIndicacion,
             Version = 1
         };
-        if (validated.Prevencion is not null)
-        {
-            validated.Prevencion.Estado = EstadoPrevencion.Realizada;
-            validated.Prevencion.FechaRealizacion = now;
-            validated.Prevencion.Version++;
-        }
+        // 3. La vacuna o desparasitación pasa a Realizada en la base (trigger prevencion_segun_aplicaciones).
         db.Aplicaciones.Add(aplicacion);
         await db.SaveChangesAsync(cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = aplicacion.Id }, ToDto(aplicacion));
@@ -63,48 +64,33 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(Guid id, ActualizarAplicacionDto dto, CancellationToken cancellationToken)
+    // 4. Corregir una aplicación: guarda los datos anteriores con el motivo (RF-05) y luego actualiza.
+    public async Task<IActionResult> Update(Guid id, CorregirAplicacionDto dto, CancellationToken cancellationToken)
     {
         var aplicacion = await db.Aplicaciones.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (aplicacion is null) return NotFound();
         if (aplicacion.Anulado) return BadRequest(new { error = "No se puede modificar una aplicación anulada." });
+        var fecha = DateTimesVetLink.ToUtc(dto.FechaHoraReal);
+        if (fecha == default || fecha > DateTime.UtcNow.AddMinutes(5))
+            return BadRequest(new { error = "La fecha real es obligatoria y no puede estar en el futuro." });
 
-        var validated = await ValidarAplicacion(dto, id, cancellationToken);
-        if (validated.Error is not null) return validated.Error;
-        var oldPrevencionId = aplicacion.PrevencionId;
-        var oldPrevencion = oldPrevencionId is null
-            ? null
-            : await db.Prevenciones.SingleOrDefaultAsync(x => x.Id == oldPrevencionId, cancellationToken);
-
-        aplicacion.FichaBovinaId = dto.FichaBovinaId;
-        aplicacion.CuentaTrabajadorId = dto.CuentaTrabajadorId;
-        aplicacion.TratamientoId = dto.TratamientoId;
-        aplicacion.PrevencionId = dto.PrevencionId;
-        aplicacion.FechaHoraReal = DateTimesVetLink.ToUtc(dto.FechaHoraReal);
+        db.CorreccionesCuidados.Add(new CorreccionCuidado
+        {
+            FichaBovinaId = aplicacion.FichaBovinaId,
+            RegistroTipo = "aplicacion",
+            RegistroId = aplicacion.Id,
+            DatosAnteriores = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                aplicacion.FechaHoraReal, aplicacion.Dosis, aplicacion.Unidad, aplicacion.Observacion, aplicacion.Version,
+            }),
+            Motivo = dto.Motivo.Trim(),
+            CorregidoPor = User.CuentaId(),
+        });
+        aplicacion.FechaHoraReal = fecha;
         aplicacion.Dosis = dto.Dosis;
         aplicacion.Unidad = dto.Unidad.Trim();
         aplicacion.Observacion = dto.Observacion?.Trim();
-        aplicacion.Tipo = validated.Tipo!;
-        aplicacion.VersionIndicacion = validated.VersionIndicacion;
         aplicacion.Version++;
-
-        if (oldPrevencion is not null && oldPrevencion.Id != dto.PrevencionId)
-        {
-            var quedanAplicaciones = await db.Aplicaciones.AnyAsync(x => x.Id != id &&
-                x.PrevencionId == oldPrevencion.Id && !x.Anulado, cancellationToken);
-            if (!quedanAplicaciones && oldPrevencion.Estado != EstadoPrevencion.Cancelada)
-            {
-                oldPrevencion.Estado = EstadoPrevencion.Pendiente;
-                oldPrevencion.FechaRealizacion = null;
-                oldPrevencion.Version++;
-            }
-        }
-        if (validated.Prevencion is not null)
-        {
-            validated.Prevencion.Estado = EstadoPrevencion.Realizada;
-            validated.Prevencion.FechaRealizacion = aplicacion.FechaHoraReal;
-            validated.Prevencion.Version++;
-        }
         await db.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
@@ -118,20 +104,9 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
         if (aplicacion is null) return NotFound();
         if (!aplicacion.Anulado)
         {
+            // 5. Si era la única aplicación de una prevención, la base la vuelve a Pendiente.
             aplicacion.Anulado = true;
             aplicacion.Version++;
-            if (aplicacion.PrevencionId is Guid prevencionId)
-            {
-                var prevencion = await db.Prevenciones.SingleOrDefaultAsync(x => x.Id == prevencionId, cancellationToken);
-                var quedanAplicaciones = await db.Aplicaciones.AnyAsync(x => x.Id != id &&
-                    x.PrevencionId == prevencionId && !x.Anulado, cancellationToken);
-                if (prevencion is not null && !quedanAplicaciones && prevencion.Estado != EstadoPrevencion.Cancelada)
-                {
-                    prevencion.Estado = EstadoPrevencion.Pendiente;
-                    prevencion.FechaRealizacion = null;
-                    prevencion.Version++;
-                }
-            }
             await db.SaveChangesAsync(cancellationToken);
         }
         return NoContent();
