@@ -3,6 +3,7 @@ using ApiWeb.DTOs;
 using ApiWeb.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 
 namespace ApiWeb.Controllers;
 
@@ -12,8 +13,12 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<PrevencionDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<PrevencionDto>>> GetAll(CancellationToken cancellationToken) =>
-        Ok(await db.Prevenciones.AsNoTracking().OrderBy(x => x.FechaProgramada)
+    public async Task<ActionResult<IReadOnlyList<PrevencionDto>>> GetAll([FromQuery] Guid? fichaBovinaId,
+        CancellationToken cancellationToken) =>
+        // 1. Con fichaBovinaId lista solo la prevención de ese animal.
+        Ok(await db.Prevenciones.AsNoTracking()
+            .Where(x => fichaBovinaId == null || x.FichaBovinaId == fichaBovinaId)
+            .OrderBy(x => x.FechaProgramada)
             .Select(ToProjection()).ToListAsync(cancellationToken));
 
     [HttpGet("{id:guid}")]
@@ -31,23 +36,28 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PrevencionDto>> Create(CrearPrevencionDto dto, CancellationToken cancellationToken)
     {
-        var validacion = await ValidarResponsable(dto.FichaBovinaId, dto.CuentaVeterinarioId, dto.Tipo, dto.Nombre,
-            dto.FechaProgramada, cancellationToken);
-        if (validacion is not null) return validacion;
+        if (!Enum.IsDefined(dto.Tipo)) return BadRequest(new { error = "El tipo de prevención no es válido." });
 
-        var prevencion = new Prevencion
-        {
-            FichaBovinaId = dto.FichaBovinaId,
-            CuentaVeterinarioId = dto.CuentaVeterinarioId,
-            Tipo = dto.Tipo,
-            Nombre = dto.Nombre.Trim(),
-            FechaProgramada = dto.FechaProgramada,
-            Estado = EstadoPrevencion.Pendiente,
-            Version = 1
-        };
-        db.Prevenciones.Add(prevencion);
-        await db.SaveChangesAsync(cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = prevencion.Id }, ToDto(prevencion));
+        // 2. La función de Supabase toma al veterinario del token y deja la prevención Pendiente.
+        var id = (Guid)(await db.LlamarAsync("select public.programar_prevencion(@ficha, @tipo, @nombre, @fecha)",
+            cancellationToken,
+            ("ficha", dto.FichaBovinaId, NpgsqlDbType.Uuid), ("tipo", dto.Tipo.ToString(), NpgsqlDbType.Text),
+            ("nombre", dto.Nombre, NpgsqlDbType.Text), ("fecha", dto.FechaProgramada, NpgsqlDbType.Date)))!;
+        var prevencion = await db.Prevenciones.AsNoTracking().FirstAsync(x => x.Id == id, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id }, ToDto(prevencion));
+    }
+
+    // 3. Completar un control: pasa de Pendiente a Realizado y conserva el registro.
+    [HttpPost("{id:guid}/completar-control")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CompletarControl(Guid id, CompletarControlDto dto, CancellationToken cancellationToken)
+    {
+        await db.LlamarAsync("select public.completar_control_preventivo(@id, @version, @fecha)", cancellationToken,
+            ("id", id, NpgsqlDbType.Uuid), ("version", dto.Version, NpgsqlDbType.Integer),
+            ("fecha", DateTimesVetLink.ToUtc(dto.FechaRealizacion), NpgsqlDbType.TimestampTz));
+        return NoContent();
     }
 
     [HttpPut("{id:guid}")]
