@@ -77,7 +77,7 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
             : await db.Prevenciones.SingleOrDefaultAsync(x => x.Id == oldPrevencionId, cancellationToken);
 
         aplicacion.FichaBovinaId = dto.FichaBovinaId;
-        aplicacion.CuentaTrabajadorId = dto.CuentaTrabajadorId;
+        // Se conserva el autor original; la auditoría identifica a quien corrige.
         aplicacion.TratamientoId = dto.TratamientoId;
         aplicacion.PrevencionId = dto.PrevencionId;
         aplicacion.FechaHoraReal = DateTimesVetLink.ToUtc(dto.FechaHoraReal);
@@ -152,12 +152,14 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
             .SingleOrDefaultAsync(cancellationToken);
         if (ficha is null) return ValidacionAplicacion.ErrorResult("La ficha bovina indicada no existe.");
         if (ficha.FechaBaja is not null) return ValidacionAplicacion.ErrorResult("No se puede registrar una aplicación para una ficha dada de baja.");
-        if (!await db.Cuentas.AnyAsync(x => x.Id == dto.CuentaTrabajadorId && x.Activa, cancellationToken))
+        var administrador = Guid.TryParse(User.FindFirst("sub")?.Value, out var actor) &&
+            await ClinicaValidaciones.EsAdministradorAsync(db, actor, cancellationToken);
+        if (!administrador && !await db.Cuentas.AnyAsync(x => x.Id == dto.CuentaTrabajadorId && x.Activa, cancellationToken))
             return ValidacionAplicacion.ErrorResult("La cuenta del trabajador no existe o está inactiva.");
         var puedeAplicar = await db.Vinculaciones.AnyAsync(x => x.CuentaId == dto.CuentaTrabajadorId &&
             x.GranjaId == ficha.GranjaId && x.Activa &&
             (x.Rol == RolesVetLink.Trabajador || x.Rol == RolesVetLink.Veterinario), cancellationToken);
-        if (!puedeAplicar)
+        if (!administrador && !puedeAplicar)
             return ValidacionAplicacion.ErrorResult("La cuenta necesita una vinculación activa como Trabajador o Veterinario en la granja de la ficha.");
 
         if (dto.TratamientoId is Guid tratamientoId)

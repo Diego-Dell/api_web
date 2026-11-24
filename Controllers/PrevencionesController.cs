@@ -72,7 +72,7 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
             return BadRequest(new { error = "La ficha o el estado no se pueden cambiar mientras existan aplicaciones activas asociadas." });
 
         prevencion.FichaBovinaId = dto.FichaBovinaId;
-        prevencion.CuentaVeterinarioId = dto.CuentaVeterinarioId;
+        // Se conserva el autor original; la auditoría identifica a quien corrige.
         prevencion.Tipo = dto.Tipo;
         prevencion.Nombre = dto.Nombre.Trim();
         prevencion.FechaProgramada = dto.FechaProgramada;
@@ -117,6 +117,8 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
             .SingleOrDefaultAsync(cancellationToken);
         if (ficha is null) return BadRequest(new { error = "La ficha bovina indicada no existe." });
         if (ficha.FechaBaja is not null) return BadRequest(new { error = "No se puede programar prevención para una ficha dada de baja." });
+        if (Guid.TryParse(User.FindFirst("sub")?.Value, out var actor) &&
+            await ClinicaValidaciones.EsAdministradorAsync(db, actor, cancellationToken)) return null;
         if (!await db.Cuentas.AnyAsync(x => x.Id == cuentaVeterinarioId && x.Activa, cancellationToken))
             return BadRequest(new { error = "La cuenta veterinaria no existe o está inactiva." });
         var tieneRolVeterinario = await db.Vinculaciones.AnyAsync(x => x.CuentaId == cuentaVeterinarioId &&

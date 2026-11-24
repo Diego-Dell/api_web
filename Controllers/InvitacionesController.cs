@@ -99,6 +99,8 @@ public sealed class InvitacionesController(AppDbContext db) : ControllerBase
             return BadRequest(new { error = "La granja indicada no existe." });
         if (!await db.Cuentas.AnyAsync(x => x.Id == cuentaEmisoraId && x.Activa, cancellationToken))
             return BadRequest(new { error = "La cuenta emisora no existe o está inactiva." });
+        if (await ClinicaValidaciones.EsAdministradorAsync(db, cuentaEmisoraId, cancellationToken)
+            && await db.Granjas.AnyAsync(g => g.Id == granjaId && g.Confirmada, cancellationToken)) return null;
         var puedeInvitar = await db.Vinculaciones.AnyAsync(x => x.CuentaId == cuentaEmisoraId && x.GranjaId == granjaId &&
             x.Activa && (x.Rol == RolesVetLink.Propietario || x.Rol == RolesVetLink.Administrador), cancellationToken);
         return puedeInvitar ? null : BadRequest(new { error = "La cuenta emisora necesita una vinculación activa de Propietario o Administrador en esa granja." });

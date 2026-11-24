@@ -108,6 +108,9 @@ public sealed class FichasBovinasController(AppDbContext db) : ControllerBase
     {
         if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var cuentaId)) return null;
         if (!await db.Cuentas.AnyAsync(c => c.Id == cuentaId && c.Activa, ct)) return null;
+        if (await db.Cuentas.AnyAsync(c => c.Id == cuentaId && c.Activa && c.AdministradorTecnico, ct)
+            && await db.Granjas.AnyAsync(g => g.Id == granjaId && g.Confirmada, ct))
+            return RolesVetLink.Administrador;
         return await db.Vinculaciones.Where(v => v.GranjaId == granjaId && v.CuentaId == cuentaId && v.Activa)
             .Select(v => v.Rol).FirstOrDefaultAsync(ct);
     }

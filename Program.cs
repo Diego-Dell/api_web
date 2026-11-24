@@ -24,6 +24,7 @@ var conexion = Conexion(Environment.GetEnvironmentVariable("DATABASE_URL")
 
 // 2. PostgreSQL de Supabase con sus tipos enumerados.
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<SesionSupabase>();
 builder.Services.AddDbContext<AppDbContext>((servicios, opciones) => opciones
     .UseNpgsql(conexion, npgsql => npgsql
