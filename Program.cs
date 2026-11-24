@@ -96,7 +96,11 @@ app.UseExceptionHandler(errores => errores.Run(async contexto =>
     var postgres = error as PostgresException ?? error?.InnerException as PostgresException;
     (int estado, string mensaje) = postgres?.SqlState switch
     {
-        PostgresErrorCodes.InsufficientPrivilege => (403, "Tu rol no permite esta operación."),
+        // 9. Las funciones de Supabase explican el rechazo; los permisos de tabla usan el mensaje general.
+        PostgresErrorCodes.InsufficientPrivilege => (403, postgres!.MessageText.StartsWith("permission denied")
+            || postgres.MessageText.StartsWith("new row violates") ? "Tu rol no permite esta operación." : postgres.MessageText),
+        PostgresErrorCodes.SerializationFailure => (409, postgres!.MessageText),
+        PostgresErrorCodes.InvalidTextRepresentation => (400, "Uno de los valores no es válido."),
         PostgresErrorCodes.UniqueViolation => (409, "Ya existe un registro con esos datos."),
         PostgresErrorCodes.ForeignKeyViolation => (400, "Uno de los registros relacionados no existe o no es de la misma granja."),
         PostgresErrorCodes.CheckViolation or PostgresErrorCodes.NotNullViolation => (400, "Hay datos obligatorios vacíos o fuera de rango."),
@@ -131,20 +135,21 @@ app.MapGet("/health/base", async (AppDbContext db) =>
             : $"{e.GetType().Name}: {(e.InnerException ?? e).GetType().Name}";
         return Results.Json(new { base_de_datos = "sin conexión", causa }, statusCode: 503);
     }
-    try
+    // 12. Como "anon": si la columna o tabla existe falta permiso (42501); si no existe, falta el script (42703/42P01).
+    async Task<string> Revisar(string sql, string archivo)
     {
-        // 12. Como "anon": si la columna existe falta permiso (42501); si no existe, falta el script (42703).
-        await db.Database.ExecuteSqlRawAsync("select version from public.fichas_bovinas limit 0");
-        return Results.Ok(new { base_de_datos = "conectada", script_api = "aplicado" });
+        try { await db.Database.ExecuteSqlRawAsync(sql); return "aplicado"; }
+        catch (PostgresException e) when (e.SqlState is PostgresErrorCodes.UndefinedColumn or PostgresErrorCodes.UndefinedTable)
+        { return $"falta aplicar {archivo}"; }
+        catch (PostgresException) { return "aplicado"; }
     }
-    catch (PostgresException e)
+    return Results.Ok(new
     {
-        return Results.Ok(new
-        {
-            base_de_datos = "conectada",
-            script_api = e.SqlState == PostgresErrorCodes.UndefinedColumn ? "falta aplicar 2026-11-22_api_web.sql" : "aplicado",
-        });
-    }
+        base_de_datos = "conectada",
+        script_api = await Revisar("select version from public.fichas_bovinas limit 0", "2026-11-22_api_web.sql"),
+        tratamientos_prevencion = await Revisar("select retiro from public.tratamientos limit 0", "202611220002_tratamientos_prevencion.sql"),
+        sprint2_cuidados = await Revisar("select id from public.observaciones_cuidados limit 0", "2026-11-24_sprint2_completar.sql"),
+    });
 }).AllowAnonymous();
 app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 

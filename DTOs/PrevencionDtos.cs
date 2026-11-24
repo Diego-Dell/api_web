@@ -27,6 +27,13 @@ public sealed class ActualizarPrevencionDto
     public DateTime? FechaRealizacion { get; set; }
 }
 
+// 1. Completar un control preventivo: versión vista y fecha de realización.
+public sealed class CompletarControlDto
+{
+    public int Version { get; set; }
+    public DateTime FechaRealizacion { get; set; }
+}
+
 public sealed record PrevencionDto(Guid Id, Guid FichaBovinaId, Guid CuentaVeterinarioId,
     [property: JsonConverter(typeof(JsonStringEnumConverter))] TipoPrevencion Tipo,
     string Nombre, DateOnly FechaProgramada,

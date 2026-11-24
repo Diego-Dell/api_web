@@ -20,6 +20,9 @@ public class Tratamiento
     [Required, MaxLength(100)] public string Duracion { get; set; } = string.Empty;
     public DateOnly? FechaFin { get; set; }
     public string? MotivoFin { get; set; }
+    // 1. Retiro (leche o carne) e indicación que esta reemplaza; la anterior se conserva.
+    public string? Retiro { get; set; }
+    public Guid? AnteriorId { get; set; }
     public bool Anulado { get; set; }
     public int Version { get; set; } = 1;
     public ICollection<Aplicacion> Aplicaciones { get; set; } = new List<Aplicacion>();
