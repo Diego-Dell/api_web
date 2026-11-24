@@ -34,7 +34,7 @@ public sealed class AdministracionController(AppDbContext db,
             consulta = consulta.Where(c => c.Nombre.ToLower().Contains(texto) || c.Identificador.ToLower().Contains(texto));
         }
         return Ok(await consulta.OrderBy(c => c.Nombre).Take(100)
-            .Select(c => new { c.Id, c.Nombre, correo = c.Identificador, c.Activa, c.AdministradorTecnico }).ToListAsync(ct));
+            .Select(c => new { c.Id, nombre = c.Nombre ?? c.Identificador, correo = c.Identificador, c.Activa, c.AdministradorTecnico }).ToListAsync(ct));
     }
 
     [HttpGet("cuentas/{id:guid}")]
@@ -42,7 +42,7 @@ public sealed class AdministracionController(AppDbContext db,
     {
         if (!await Autorizado(ct)) return Forbid();
         var cuenta = await db.Cuentas.AsNoTracking().Where(c => c.Id == id)
-            .Select(c => new { c.Id, c.Nombre, correo = c.Identificador, c.Activa, c.AdministradorTecnico }).SingleOrDefaultAsync(ct);
+            .Select(c => new { c.Id, nombre = c.Nombre ?? c.Identificador, correo = c.Identificador, c.Activa, c.AdministradorTecnico }).SingleOrDefaultAsync(ct);
         if (cuenta is null) return NotFound();
         var accesos = await db.Vinculaciones.AsNoTracking().Where(v => v.CuentaId == id)
             .Select(v => new { v.Id, v.GranjaId, granja = v.Granja.Nombre, v.Rol, v.Activa }).ToListAsync(ct);
@@ -55,11 +55,10 @@ public sealed class AdministracionController(AppDbContext db,
         if (!await Autorizado(ct)) return Forbid();
         if (string.IsNullOrWhiteSpace(dto.Nombre)) return BadRequest(new { error = "El nombre es obligatorio." });
         if (id == CuentaId && !dto.Activa) return BadRequest(new { error = "No podés desactivar tu propia cuenta administradora." });
-        var cuenta = await db.Cuentas.SingleOrDefaultAsync(c => c.Id == id, ct);
-        if (cuenta is null) return NotFound();
-        cuenta.Nombre = dto.Nombre.Trim();
-        cuenta.Activa = dto.Activa;
-        await db.SaveChangesAsync(ct);
+        var modificadas = await db.Cuentas.Where(c => c.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Nombre, dto.Nombre.Trim())
+                .SetProperty(c => c.Activa, dto.Activa), ct);
+        if (modificadas == 0) return NotFound();
         return NoContent();
     }
 
@@ -107,7 +106,7 @@ public sealed class AdministracionController(AppDbContext db,
     {
         if (!await Autorizado(ct)) return Forbid();
         return Ok(await db.Vinculaciones.AsNoTracking().Where(v => v.GranjaId == id)
-            .Select(v => new { v.Id, v.CuentaId, nombre = v.Cuenta.Nombre,
+            .Select(v => new { v.Id, v.CuentaId, nombre = v.Cuenta.Nombre ?? v.Cuenta.Identificador,
                 correo = v.Cuenta.Identificador, v.Rol, v.Activa }).ToListAsync(ct));
     }
 
@@ -115,11 +114,15 @@ public sealed class AdministracionController(AppDbContext db,
     public async Task<IActionResult> Recuperar(Guid id, CancellationToken ct)
     {
         if (!await Autorizado(ct)) return Forbid();
-        var cuenta = await db.Cuentas.AsNoTracking().SingleOrDefaultAsync(c => c.Id == id, ct);
+        var cuenta = await db.Cuentas.AsNoTracking().Where(c => c.Id == id)
+            .Select(c => new { c.Activa, c.Identificador }).SingleOrDefaultAsync(ct);
         if (cuenta is null) return NotFound();
         if (!cuenta.Activa) return BadRequest(new { error = "Activá la cuenta antes de solicitar la recuperación." });
         var url = configuracion["SUPABASE_URL"]?.TrimEnd('/');
+        // La clave pública del cliente permite conservar la configuración del
+        // servicio compartido. El permiso administrativo ya se verificó arriba.
         var clave = configuracion["SUPABASE_PUBLISHABLE_KEY"];
+        if (string.IsNullOrWhiteSpace(clave)) clave = Request.Headers["apikey"].FirstOrDefault();
         if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(clave))
             return StatusCode(503, new { error = "Falta configurar la recuperación en Render." });
         using var cliente = clientes.CreateClient();
