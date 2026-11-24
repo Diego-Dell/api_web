@@ -52,6 +52,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         // 4. La contraseña la guarda Supabase Auth, no esta tabla.
         m.Entity<Cuenta>().Ignore(x => x.ClaveHash);
+        // Algunas cuentas invitadas todavía no completaron su nombre.
+        m.Entity<Cuenta>().Property(x => x.Nombre).IsRequired(false);
 
         // 5. Columnas cuyo nombre no sale de pasar la propiedad a snake_case.
         m.Entity<Granja>().Property(x => x.RUNSA).HasColumnName("runsa");

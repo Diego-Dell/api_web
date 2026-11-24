@@ -45,6 +45,7 @@ public sealed class AtencionesClinicasController(AppDbContext db) : ControllerBa
     public async Task<ActionResult<AtencionClinicaDto>> Crear(AtencionClinicaCrearDto dto,
         CancellationToken ct)
     {
+        dto.CuentaVeterinarioId = User.CuentaId();
         var error = Validar(dto.Fecha, dto.Tipo, dto.Detalle);
         if (error is not null) return BadRequest(error);
         var ficha = await db.FichasBovinas.AsNoTracking()

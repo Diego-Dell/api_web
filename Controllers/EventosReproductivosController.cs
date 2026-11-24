@@ -35,6 +35,7 @@ public sealed class EventosReproductivosController(AppDbContext db) : Controller
     public async Task<ActionResult<EventoReproductivoDto>> Crear(EventoReproductivoCrearDto dto,
         CancellationToken ct)
     {
+        dto.CuentaVeterinarioId = User.CuentaId();
         var error = Validar(dto.Fecha, dto.Tipo, dto.Aptitud, dto.Prenez,
             dto.ProximoControl, dto.PartoProbable, dto.NumeroParto);
         if (error is not null) return BadRequest(error);

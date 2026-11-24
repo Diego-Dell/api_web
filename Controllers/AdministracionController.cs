@@ -80,8 +80,11 @@ public sealed class AdministracionController(AppDbContext db,
         return Ok(await db.Database.SqlQuery<GranjaAdministrativaDto>($"""
             select id as "Id", nombre as "Nombre", hectareas as "Hectareas",
               runsa as "Runsa", documentos_terreno as "DocumentosTerreno",
-              confirmada as "Confirmada", motivo_rechazo as "MotivoRechazo"
-            from public.granjas where motivo_rechazo is null order by nombre
+              confirmada as "Confirmada", motivo_rechazo as "MotivoRechazo",
+              coalesce((select string_agg(coalesce(c.nombre,c.identificador), ', ')
+                from public.vinculaciones v join public.cuentas c on c.id=v.cuenta_id
+                where v.granja_id=g.id and v.rol::text='dueno' and v.activa), 'No disponible') as "Dueno"
+            from public.granjas g where motivo_rechazo is null order by nombre
             """).ToListAsync(ct));
     }
 
@@ -140,4 +143,4 @@ public sealed record CuentaAdministrativaDto([Required, StringLength(120)] strin
 public sealed record EstadoAccesoDto(bool Activa);
 public sealed record RechazoGranjaDto([Required, StringLength(500, MinimumLength = 1)] string Motivo);
 public sealed record GranjaAdministrativaDto(Guid Id, string Nombre, decimal Hectareas,
-    string? Runsa, string? DocumentosTerreno, bool Confirmada, string? MotivoRechazo);
+    string? Runsa, string? DocumentosTerreno, bool Confirmada, string? MotivoRechazo, string Dueno);
