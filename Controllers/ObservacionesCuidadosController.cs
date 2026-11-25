@@ -37,11 +37,16 @@ public sealed class ObservacionesCuidadosController(AppDbContext db) : Controlle
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ObservacionDto>> Crear(CrearObservacionDto dto, CancellationToken ct)
     {
+        // RF-07: si el registro ya llegó en un envío anterior, se devuelve el mismo.
+        if (dto.Id is Guid previo && previo != Guid.Empty &&
+            await db.ObservacionesCuidados.AsNoTracking().FirstOrDefaultAsync(x => x.Id == previo, ct) is { } existente)
+            return Ok(Map(existente));
         var fecha = DateTimesVetLink.ToUtc(dto.FechaHora == default ? DateTime.UtcNow : dto.FechaHora);
         if (fecha > DateTime.UtcNow.AddMinutes(5))
             return BadRequest(new { error = "La fecha de observación no puede estar en el futuro." });
         var o = new ObservacionCuidado
         {
+            Id = dto.Id is Guid nuevo && nuevo != Guid.Empty ? nuevo : Guid.NewGuid(),
             FichaBovinaId = dto.FichaBovinaId,
             RegistradoPor = User.CuentaId(),
             FechaHora = fecha,
@@ -63,6 +68,8 @@ public sealed class ObservacionesCuidadosController(AppDbContext db) : Controlle
         var o = await db.ObservacionesCuidados.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (o is null) return NotFound();
         if (o.Anulado) return BadRequest(new { error = "No se puede corregir una observación anulada." });
+        if (dto.Version is int vista && vista != o.Version)
+            return Conflict(new { error = "El registro cambió mientras lo corregías. Revisá la versión actual antes de volver a guardar." });
         db.CorreccionesCuidados.Add(new CorreccionCuidado
         {
             FichaBovinaId = o.FichaBovinaId,

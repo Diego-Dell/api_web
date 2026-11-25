@@ -36,12 +36,17 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<AplicacionDto>> Create(CrearAplicacionDto dto, CancellationToken cancellationToken)
     {
         // 2. Quien aplica es siempre la persona del token.
+        // RF-07: si el registro ya llegó en un envío anterior, se devuelve el mismo.
+        if (dto.Id is Guid previo && previo != Guid.Empty &&
+            await db.Aplicaciones.AsNoTracking().FirstOrDefaultAsync(x => x.Id == previo, cancellationToken) is { } existente)
+            return Ok(ToDto(existente));
         dto.CuentaTrabajadorId = User.CuentaId();
         var validated = await ValidarAplicacion(dto, null, cancellationToken);
         if (validated.Error is not null) return validated.Error;
         var now = DateTimesVetLink.ToUtc(dto.FechaHoraReal);
         var aplicacion = new Aplicacion
         {
+            Id = dto.Id is Guid nuevo && nuevo != Guid.Empty ? nuevo : Guid.NewGuid(),
             FichaBovinaId = dto.FichaBovinaId,
             CuentaTrabajadorId = dto.CuentaTrabajadorId,
             TratamientoId = dto.TratamientoId,
@@ -70,6 +75,8 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
         var aplicacion = await db.Aplicaciones.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (aplicacion is null) return NotFound();
         if (aplicacion.Anulado) return BadRequest(new { error = "No se puede modificar una aplicación anulada." });
+        if (dto.Version is int vista && vista != aplicacion.Version)
+            return Conflict(new { error = "El registro cambió mientras lo corregías. Revisá la versión actual antes de volver a guardar." });
         var fecha = DateTimesVetLink.ToUtc(dto.FechaHoraReal);
         if (fecha == default || fecha > DateTime.UtcNow.AddMinutes(5))
             return BadRequest(new { error = "La fecha real es obligatoria y no puede estar en el futuro." });

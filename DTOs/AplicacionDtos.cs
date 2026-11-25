@@ -4,6 +4,8 @@ namespace ApiWeb.DTOs;
 
 public class CrearAplicacionDto
 {
+    // RF-07: id generado en el dispositivo; un reintento con el mismo id no duplica el registro.
+    public Guid? Id { get; set; }
     public Guid FichaBovinaId { get; set; }
     public Guid CuentaTrabajadorId { get; set; }
     public Guid? TratamientoId { get; set; }

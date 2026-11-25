@@ -5,6 +5,8 @@ namespace ApiWeb.DTOs;
 
 public sealed class AtencionClinicaCrearDto
 {
+    // RF-07: id generado en el dispositivo; un reintento con el mismo id no duplica el registro.
+    public Guid? Id { get; set; }
     [Required] public Guid FichaBovinaId { get; set; }
     [Required] public Guid CuentaVeterinarioId { get; set; }
     public DateTime Fecha { get; set; }

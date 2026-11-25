@@ -35,6 +35,10 @@ public sealed class EventosReproductivosController(AppDbContext db) : Controller
     public async Task<ActionResult<EventoReproductivoDto>> Crear(EventoReproductivoCrearDto dto,
         CancellationToken ct)
     {
+        // RF-07: si el registro ya llegó en un envío anterior, se devuelve el mismo.
+        if (dto.Id is Guid previo && previo != Guid.Empty &&
+            await db.EventosReproductivos.AsNoTracking().FirstOrDefaultAsync(x => x.Id == previo, ct) is { } existente)
+            return Ok(Map(existente));
         dto.CuentaVeterinarioId = User.CuentaId();
         var error = Validar(dto.Fecha, dto.Tipo, dto.Aptitud, dto.Prenez,
             dto.ProximoControl, dto.PartoProbable, dto.NumeroParto);
@@ -48,6 +52,7 @@ public sealed class EventosReproductivosController(AppDbContext db) : Controller
             return BadRequest("La cuenta debe estar activa y vinculada como veterinario a la granja.");
         var e = new EventoReproductivo
         {
+            Id = dto.Id is Guid nuevo && nuevo != Guid.Empty ? nuevo : Guid.NewGuid(),
             FichaBovinaId = dto.FichaBovinaId,
             CuentaVeterinarioId = dto.CuentaVeterinarioId
         };

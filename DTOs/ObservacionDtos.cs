@@ -5,6 +5,8 @@ namespace ApiWeb.DTOs;
 // 1. Registrar una observación; la cuenta sale del token (CuentaTrabajadorId se acepta pero no se usa).
 public sealed class CrearObservacionDto
 {
+    // RF-07: id generado en el dispositivo; un reintento con el mismo id no duplica el registro.
+    public Guid? Id { get; set; }
     public Guid FichaBovinaId { get; set; }
     public Guid? CuentaTrabajadorId { get; set; }
     public DateTime FechaHora { get; set; }
@@ -15,6 +17,8 @@ public sealed class CrearObservacionDto
 // 2. Corregir una observación propia: datos nuevos y motivo obligatorio.
 public sealed class CorregirObservacionDto
 {
+    // RF-07: versión que vio quien corrige; si cambió en el servidor, se rechaza para revisar.
+    public int? Version { get; set; }
     public DateTime FechaHora { get; set; }
     [Required, StringLength(1000, MinimumLength = 1)] public string Observado { get; set; } = string.Empty;
     [Required, StringLength(1000, MinimumLength = 1)] public string CuidadoRealizado { get; set; } = string.Empty;
@@ -24,6 +28,8 @@ public sealed class CorregirObservacionDto
 // 3. Corregir una aplicación: fecha, dosis, unidad u observación, con motivo obligatorio.
 public sealed class CorregirAplicacionDto
 {
+    // RF-07: versión que vio quien corrige; si cambió en el servidor, se rechaza para revisar.
+    public int? Version { get; set; }
     public DateTime FechaHoraReal { get; set; }
     [Range(typeof(decimal), "0.000001", "999999999.999")] public decimal Dosis { get; set; }
     [Required, StringLength(30, MinimumLength = 1)] public string Unidad { get; set; } = string.Empty;

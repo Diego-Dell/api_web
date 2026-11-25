@@ -45,6 +45,10 @@ public sealed class AtencionesClinicasController(AppDbContext db) : ControllerBa
     public async Task<ActionResult<AtencionClinicaDto>> Crear(AtencionClinicaCrearDto dto,
         CancellationToken ct)
     {
+        // RF-07: si el registro ya llegó en un envío anterior, se devuelve el mismo.
+        if (dto.Id is Guid previo && previo != Guid.Empty &&
+            await db.AtencionesClinicas.AsNoTracking().FirstOrDefaultAsync(x => x.Id == previo, ct) is { } existente)
+            return Ok(Map(existente));
         dto.CuentaVeterinarioId = User.CuentaId();
         var error = Validar(dto.Fecha, dto.Tipo, dto.Detalle);
         if (error is not null) return BadRequest(error);
@@ -57,6 +61,7 @@ public sealed class AtencionesClinicasController(AppDbContext db) : ControllerBa
             return BadRequest("La cuenta debe estar activa y vinculada como veterinario a la granja.");
         var a = new AtencionClinica
         {
+            Id = dto.Id is Guid nuevo && nuevo != Guid.Empty ? nuevo : Guid.NewGuid(),
             FichaBovinaId = dto.FichaBovinaId,
             CuentaVeterinarioId = dto.CuentaVeterinarioId
         };
