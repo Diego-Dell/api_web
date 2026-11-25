@@ -29,6 +29,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         v => Enum.Parse<RolInvitado>(v, true),
         v => v.ToString());
 
+    public static bool PrevencionConDosis { get; set; }
+
     protected override void OnModelCreating(ModelBuilder m)
     {
         base.OnModelCreating(m);
@@ -43,6 +45,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         m.Entity<EventoReproductivo>().ToTable("eventos_reproductivos");
         m.Entity<Tratamiento>().ToTable("tratamientos");
         m.Entity<Prevencion>().ToTable("prevenciones");
+        // F5: las columnas dosis/unidad existen solo después de aplicar 2026-11-25_dosis_prevencion.sql.
+        if (!PrevencionConDosis) m.Entity<Prevencion>().Ignore(x => x.Dosis).Ignore(x => x.Unidad);
+        else m.Entity<Prevencion>().Property(x => x.Dosis).HasPrecision(10, 3);
         m.Entity<Aplicacion>().ToTable("aplicaciones");
         m.Entity<ObservacionCuidado>().ToTable("observaciones_cuidados");
         m.Entity<CorreccionCuidado>().ToTable("correcciones_cuidados");

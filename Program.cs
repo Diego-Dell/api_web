@@ -22,6 +22,18 @@ var conexion = Conexion(Environment.GetEnvironmentVariable("DATABASE_URL")
     ?? builder.Configuration.GetConnectionString("Supabase")
     ?? throw new InvalidOperationException("Falta DATABASE_URL"));
 
+// F5: detecta si ya se aplicó el script de dosis en prevenciones (sin él la API sigue funcionando).
+try
+{
+    await using var conexionInicial = new NpgsqlConnection(conexion);
+    await conexionInicial.OpenAsync();
+    await using var consulta = new NpgsqlCommand(
+        "select count(*) from information_schema.columns where table_schema='public' and table_name='prevenciones' and column_name in ('dosis','unidad')",
+        conexionInicial);
+    AppDbContext.PrevencionConDosis = Convert.ToInt32(await consulta.ExecuteScalarAsync()) == 2;
+}
+catch (Exception) { AppDbContext.PrevencionConDosis = false; }
+
 // 2. PostgreSQL de Supabase con sus tipos enumerados.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
@@ -61,7 +73,9 @@ builder.Services.AddAuthorization(opciones => opciones.FallbackPolicy =
     new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
 // 5. Los enumerados viajan como texto ("Vaca", "Pendiente"), no como números.
-builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddControllers(o => o.Filters.Add<ApiWeb.Filtros.ErroresUniformes>())
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+    .ConfigureApiBehaviorOptions(o => o.InvalidModelStateResponseFactory = ApiWeb.Filtros.ErroresUniformes.ModeloInvalido);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opciones =>
 {
@@ -112,8 +126,13 @@ app.UseExceptionHandler(errores => errores.Run(async contexto =>
     await contexto.Response.WriteAsJsonAsync(new { error = mensaje });
 }));
 app.UseCors();
-app.UseSwagger();
-app.UseSwaggerUI();
+// 13. Swagger solo en desarrollo o si SWAGGER=true; en producción no se expone la documentación.
+var conSwagger = app.Environment.IsDevelopment() || builder.Configuration["SWAGGER"] == "true";
+if (conSwagger)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -150,9 +169,10 @@ app.MapGet("/health/base", async (AppDbContext db) =>
         script_api = await Revisar("select version from public.fichas_bovinas limit 0", "2026-11-22_api_web.sql"),
         tratamientos_prevencion = await Revisar("select retiro from public.tratamientos limit 0", "202611220002_tratamientos_prevencion.sql"),
         sprint2_cuidados = await Revisar("select id from public.observaciones_cuidados limit 0", "2026-11-24_sprint2_completar.sql"),
+        dosis_prevencion = await Revisar("select dosis, unidad from public.prevenciones limit 0", "2026-11-25_dosis_prevencion.sql"),
     });
 }).AllowAnonymous();
-app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
+app.MapGet("/", () => conSwagger ? Results.Redirect("/swagger") : Results.Ok(new { servicio = "VetLink API", estado = "ok" })).AllowAnonymous();
 
 app.Run();
 

@@ -14,6 +14,9 @@ public class Prevencion
     public DateOnly FechaProgramada { get; set; }
     public EstadoPrevencion Estado { get; set; } = EstadoPrevencion.Pendiente;
     public DateTime? FechaRealizacion { get; set; }
+    // F5: dosis y unidad indicadas por el veterinario (nulas en prevenciones anteriores).
+    public decimal? Dosis { get; set; }
+    public string? Unidad { get; set; }
     public int Version { get; set; } = 1;
     public ICollection<Aplicacion> Aplicaciones { get; set; } = new List<Aplicacion>();
 }

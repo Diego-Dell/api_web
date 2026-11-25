@@ -80,6 +80,13 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
         var fecha = DateTimesVetLink.ToUtc(dto.FechaHoraReal);
         if (fecha == default || fecha > DateTime.UtcNow.AddMinutes(5))
             return BadRequest(new { error = "La fecha real es obligatoria y no puede estar en el futuro." });
+        // F2: la corrección no cambia la dosis indicada por el veterinario.
+        var indicada = aplicacion.TratamientoId is Guid tid
+            ? await db.Tratamientos.AsNoTracking().Where(x => x.Id == tid).Select(x => new { Dosis = (decimal?)x.Dosis, x.Unidad }).FirstOrDefaultAsync(cancellationToken)
+            : !AppDbContext.PrevencionConDosis ? null
+            : await db.Prevenciones.AsNoTracking().Where(x => x.Id == aplicacion.PrevencionId).Select(x => new { x.Dosis, x.Unidad }).FirstOrDefaultAsync(cancellationToken);
+        if (indicada?.Dosis is decimal d && (dto.Dosis != d || !string.Equals(dto.Unidad.Trim(), indicada.Unidad, StringComparison.OrdinalIgnoreCase)))
+            return BadRequest(new { error = $"La dosis debe ser la indicada: {d:0.###} {indicada.Unidad}." });
 
         db.CorreccionesCuidados.Add(new CorreccionCuidado
         {
@@ -148,12 +155,23 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
         {
             var tratamiento = await db.Tratamientos.AsNoTracking()
                 .Where(x => x.Id == tratamientoId)
-                .Select(x => new { x.FichaBovinaId, x.Anulado, x.Version })
+                .Select(x => new { x.FichaBovinaId, x.Anulado, x.Version, x.Dosis, x.Unidad, x.Frecuencia, x.Duracion, x.Inicio, x.FechaFin })
                 .SingleOrDefaultAsync(cancellationToken);
             if (tratamiento is null) return ValidacionAplicacion.ErrorResult("El tratamiento indicado no existe.");
             if (tratamiento.FichaBovinaId != dto.FichaBovinaId)
                 return ValidacionAplicacion.ErrorResult("El tratamiento no pertenece a la ficha bovina indicada.");
             if (tratamiento.Anulado) return ValidacionAplicacion.ErrorResult("No se puede aplicar un tratamiento anulado.");
+            // F2: la dosis y la unidad son las que indicó el veterinario.
+            if (dto.Dosis != tratamiento.Dosis || !string.Equals(dto.Unidad.Trim(), tratamiento.Unidad, StringComparison.OrdinalIgnoreCase))
+                return ValidacionAplicacion.ErrorResult($"La dosis debe ser la indicada: {tratamiento.Dosis:0.###} {tratamiento.Unidad}.");
+            // F3: dentro del período del tratamiento y sin pasar el total de dosis.
+            var dia = DateOnly.FromDateTime(DateTimesVetLink.ToUtc(dto.FechaHoraReal).AddHours(-4));
+            if (dia < tratamiento.Inicio) return ValidacionAplicacion.ErrorResult("La aplicación no puede ser anterior al inicio del tratamiento.");
+            if (tratamiento.FechaFin is DateOnly fin && dia > fin)
+                return ValidacionAplicacion.ErrorResult("El tratamiento ya finalizó; no admite nuevas aplicaciones.");
+            if (IndicacionesVetLink.TotalDosis(tratamiento.Frecuencia, tratamiento.Duracion) is int total &&
+                await db.Aplicaciones.CountAsync(x => x.TratamientoId == tratamientoId && !x.Anulado && x.Id != aplicacionId, cancellationToken) >= total)
+                return ValidacionAplicacion.ErrorResult($"El tratamiento ya tiene sus {total} aplicaciones registradas.");
             return new ValidacionAplicacion(null, null, "Tratamiento", tratamiento.Version);
         }
 
@@ -163,6 +181,10 @@ public sealed class AplicacionesController(AppDbContext db) : ControllerBase
             return ValidacionAplicacion.ErrorResult("La prevención no pertenece a la ficha bovina indicada.");
         if (prevencion.Estado == EstadoPrevencion.Cancelada)
             return ValidacionAplicacion.ErrorResult("No se puede aplicar una prevención cancelada.");
+        // F5: si la prevención tiene dosis indicada, se aplica esa dosis.
+        if (prevencion.Dosis is decimal dosisPrevencion &&
+            (dto.Dosis != dosisPrevencion || !string.Equals(dto.Unidad.Trim(), prevencion.Unidad, StringComparison.OrdinalIgnoreCase)))
+            return ValidacionAplicacion.ErrorResult($"La dosis debe ser la indicada: {dosisPrevencion:0.###} {prevencion.Unidad}.");
         // El diagrama permite varias aplicaciones por prevención (relación 1 a muchos).
         return new ValidacionAplicacion(null, prevencion, "Prevencion", prevencion.Version);
     }

@@ -97,7 +97,7 @@ public sealed class TratamientosController(AppDbContext db) : ControllerBase
     {
         var datos = JsonSerializer.Serialize(new
         {
-            medicamento, dosis, unidad, via, frecuencia,
+            medicamento, dosis, unidad = IndicacionesVetLink.UnidadValida(unidad) ?? unidad, via, frecuencia,
             inicio = inicio.ToString("yyyy-MM-dd"), duracion, retiro,
         });
         var resultado = await db.LlamarAsync(
@@ -158,6 +158,11 @@ public sealed class TratamientosController(AppDbContext db) : ControllerBase
             string.IsNullOrWhiteSpace(via) || string.IsNullOrWhiteSpace(frecuencia) ||
             string.IsNullOrWhiteSpace(duracion)) return "Complete los datos obligatorios del tratamiento.";
         if (dosis <= 0) return "La dosis debe ser positiva.";
+        // F1/F4: unidad de la lista y "Cada"/"Duración" en formato que permita calcular el total de dosis.
+        if (IndicacionesVetLink.UnidadValida(unidad) is null)
+            return $"La unidad debe ser una de: {string.Join(", ", IndicacionesVetLink.Unidades)}.";
+        if (!IndicacionesVetLink.FormatoCada(frecuencia)) return "Indicá cada cuántas horas, por ejemplo \"24 h\".";
+        if (!IndicacionesVetLink.FormatoDuracion(duracion)) return "Indicá la duración en días, por ejemplo \"5 días\".";
         if (inicio == default) return "La fecha de inicio es obligatoria.";
         if (fin < inicio) return "La fecha de fin no puede ser anterior al inicio.";
         return null;
@@ -169,7 +174,7 @@ public sealed class TratamientosController(AppDbContext db) : ControllerBase
     {
         t.Medicamento = medicamento.Trim();
         t.Dosis = dosis;
-        t.Unidad = unidad.Trim();
+        t.Unidad = IndicacionesVetLink.UnidadValida(unidad) ?? unidad.Trim();
         t.Via = via.Trim();
         t.Frecuencia = frecuencia.Trim();
         t.Inicio = inicio;

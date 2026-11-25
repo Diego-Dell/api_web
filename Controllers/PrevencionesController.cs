@@ -16,19 +16,18 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<PrevencionDto>>> GetAll([FromQuery] Guid? fichaBovinaId,
         CancellationToken cancellationToken) =>
         // 1. Con fichaBovinaId lista solo la prevención de ese animal.
-        Ok(await db.Prevenciones.AsNoTracking()
+        Ok((await db.Prevenciones.AsNoTracking()
             .Where(x => fichaBovinaId == null || x.FichaBovinaId == fichaBovinaId)
             .OrderBy(x => x.FechaProgramada)
-            .Select(ToProjection()).ToListAsync(cancellationToken));
+            .ToListAsync(cancellationToken)).Select(ToDto).ToList());
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(PrevencionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PrevencionDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var prevencion = await db.Prevenciones.AsNoTracking().Where(x => x.Id == id)
-            .Select(ToProjection()).SingleOrDefaultAsync(cancellationToken);
-        return prevencion is null ? NotFound() : Ok(prevencion);
+        var prevencion = await db.Prevenciones.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        return prevencion is null ? NotFound() : Ok(ToDto(prevencion));
     }
 
     [HttpPost]
@@ -46,10 +45,25 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
         if (previa is not null) return Ok(ToDto(previa));
 
         // 2. La función de Supabase toma al veterinario del token y deja la prevención Pendiente.
-        var id = (Guid)(await db.LlamarAsync("select public.programar_prevencion(@ficha, @tipo, @nombre, @fecha)",
-            cancellationToken,
-            ("ficha", dto.FichaBovinaId, NpgsqlDbType.Uuid), ("tipo", dto.Tipo.ToString(), NpgsqlDbType.Text),
-            ("nombre", dto.Nombre, NpgsqlDbType.Text), ("fecha", dto.FechaProgramada, NpgsqlDbType.Date)))!;
+        // F5: vacuna y desparasitación llevan dosis y unidad de la lista.
+        string? unidad = null;
+        if (AppDbContext.PrevencionConDosis && dto.Tipo != TipoPrevencion.Control)
+        {
+            unidad = IndicacionesVetLink.UnidadValida(dto.Unidad);
+            if (dto.Dosis is not > 0 || unidad is null)
+                return BadRequest(new { error = $"Indicá la dosis y una unidad válida ({string.Join(", ", IndicacionesVetLink.Unidades)})." });
+        }
+        var id = (Guid)(AppDbContext.PrevencionConDosis
+            ? await db.LlamarAsync("select public.programar_prevencion(@ficha, @tipo, @nombre, @fecha, @dosis, @unidad)",
+                cancellationToken,
+                ("ficha", dto.FichaBovinaId, NpgsqlDbType.Uuid), ("tipo", dto.Tipo.ToString(), NpgsqlDbType.Text),
+                ("nombre", dto.Nombre, NpgsqlDbType.Text), ("fecha", dto.FechaProgramada, NpgsqlDbType.Date),
+                ("dosis", dto.Tipo == TipoPrevencion.Control ? null : dto.Dosis, NpgsqlDbType.Numeric),
+                ("unidad", unidad, NpgsqlDbType.Text))
+            : await db.LlamarAsync("select public.programar_prevencion(@ficha, @tipo, @nombre, @fecha)",
+                cancellationToken,
+                ("ficha", dto.FichaBovinaId, NpgsqlDbType.Uuid), ("tipo", dto.Tipo.ToString(), NpgsqlDbType.Text),
+                ("nombre", dto.Nombre, NpgsqlDbType.Text), ("fecha", dto.FechaProgramada, NpgsqlDbType.Date)))!;
         var prevencion = await db.Prevenciones.AsNoTracking().FirstAsync(x => x.Id == id, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id }, ToDto(prevencion));
     }
@@ -160,5 +174,5 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
             x.FechaProgramada, x.Estado, x.FechaRealizacion, x.Version);
 
     private static PrevencionDto ToDto(Prevencion x) => new(x.Id, x.FichaBovinaId, x.CuentaVeterinarioId,
-        x.Tipo, x.Nombre, x.FechaProgramada, x.Estado, x.FechaRealizacion, x.Version);
+        x.Tipo, x.Nombre, x.FechaProgramada, x.Estado, x.FechaRealizacion, x.Version, x.Dosis, x.Unidad);
 }

@@ -12,6 +12,9 @@ public sealed class CrearPrevencionDto
     public TipoPrevencion Tipo { get; set; }
     [Required, StringLength(200, MinimumLength = 1)] public string Nombre { get; set; } = string.Empty;
     public DateOnly FechaProgramada { get; set; }
+    // F5: dosis y unidad para vacunas y desparasitaciones (opcionales en controles).
+    public decimal? Dosis { get; set; }
+    [StringLength(30)] public string? Unidad { get; set; }
 }
 
 public sealed class ActualizarPrevencionDto
@@ -38,4 +41,4 @@ public sealed record PrevencionDto(Guid Id, Guid FichaBovinaId, Guid CuentaVeter
     [property: JsonConverter(typeof(JsonStringEnumConverter))] TipoPrevencion Tipo,
     string Nombre, DateOnly FechaProgramada,
     [property: JsonConverter(typeof(JsonStringEnumConverter))] EstadoPrevencion Estado,
-    DateTime? FechaRealizacion, int Version);
+    DateTime? FechaRealizacion, int Version, decimal? Dosis = null, string? Unidad = null);
