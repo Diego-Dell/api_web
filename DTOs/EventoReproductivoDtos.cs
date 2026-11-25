@@ -21,6 +21,8 @@ public sealed class EventoReproductivoCrearDto
 
 public sealed class EventoReproductivoActualizarDto
 {
+    // RF-07: versión que vio quien corrige; si cambió en el servidor, se rechaza para revisar.
+    public int? Version { get; set; }
     public DateTime Fecha { get; set; }
     public TipoEvento Tipo { get; set; }
     public Aptitud? Aptitud { get; set; }

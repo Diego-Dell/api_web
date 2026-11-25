@@ -42,6 +42,13 @@ public sealed class TratamientosController(AppDbContext db) : ControllerBase
         var error = Validar(dto.Medicamento, dto.Dosis, dto.Unidad, dto.Via,
             dto.Frecuencia, dto.Inicio, dto.Duracion, null);
         if (error is not null) return BadRequest(new { error });
+        // RF-07: un reintento del celular devuelve la misma indicación vigente en vez de duplicarla.
+        var veterinario = User.CuentaId();
+        var previa = await db.Tratamientos.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.FichaBovinaId == dto.FichaBovinaId && x.AtencionClinicaId == dto.AtencionClinicaId &&
+            x.CuentaVeterinarioId == veterinario && x.Medicamento == dto.Medicamento.Trim() &&
+            x.Inicio == dto.Inicio && x.FechaFin == null && !x.Anulado, ct);
+        if (previa is not null) return Ok(Map(previa));
 
         // 2. La función de Supabase valida veterinario activo, atención del mismo animal y datos.
         var id = await GuardarIndicacion(dto.FichaBovinaId, dto.AtencionClinicaId, dto.Medicamento, dto.Dosis,

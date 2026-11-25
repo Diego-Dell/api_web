@@ -16,6 +16,8 @@ public sealed class AtencionClinicaCrearDto
 
 public sealed class AtencionClinicaActualizarDto
 {
+    // RF-07: versión que vio quien corrige; si cambió en el servidor, se rechaza para revisar.
+    public int? Version { get; set; }
     public DateTime Fecha { get; set; }
     public TipoAtencion Tipo { get; set; }
     [Required] public string Detalle { get; set; } = string.Empty;

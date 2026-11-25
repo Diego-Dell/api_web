@@ -74,6 +74,7 @@ public sealed class EventosReproductivosController(AppDbContext db) : Controller
         var e = await db.EventosReproductivos.FindAsync([id], ct);
         if (e is null) return NotFound();
         if (e.Anulado) return Conflict("El evento está anulado.");
+        if (dto.Version is int vista && vista != e.Version) return Conflict(new { error = "El registro cambió mientras lo corregías. Revisá la versión actual antes de volver a guardar." });
         var error = Validar(dto.Fecha, dto.Tipo, dto.Aptitud, dto.Prenez,
             dto.ProximoControl, dto.PartoProbable, dto.NumeroParto);
         if (error is not null) return BadRequest(error);

@@ -37,6 +37,13 @@ public sealed class PrevencionesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<PrevencionDto>> Create(CrearPrevencionDto dto, CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(dto.Tipo)) return BadRequest(new { error = "El tipo de prevención no es válido." });
+        // RF-07: un reintento del celular devuelve la misma prevención pendiente en vez de duplicarla.
+        var veterinario = User.CuentaId();
+        var previa = await db.Prevenciones.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.FichaBovinaId == dto.FichaBovinaId && x.CuentaVeterinarioId == veterinario && x.Tipo == dto.Tipo &&
+            x.Nombre == dto.Nombre.Trim() && x.FechaProgramada == dto.FechaProgramada &&
+            x.Estado == EstadoPrevencion.Pendiente, cancellationToken);
+        if (previa is not null) return Ok(ToDto(previa));
 
         // 2. La función de Supabase toma al veterinario del token y deja la prevención Pendiente.
         var id = (Guid)(await db.LlamarAsync("select public.programar_prevencion(@ficha, @tipo, @nombre, @fecha)",

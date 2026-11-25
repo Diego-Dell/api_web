@@ -82,6 +82,7 @@ public sealed class AtencionesClinicasController(AppDbContext db) : ControllerBa
         var a = await db.AtencionesClinicas.FindAsync([id], ct);
         if (a is null) return NotFound();
         if (a.Anulado) return Conflict("La atención está anulada.");
+        if (dto.Version is int vista && vista != a.Version) return Conflict(new { error = "El registro cambió mientras lo corregías. Revisá la versión actual antes de volver a guardar." });
         var error = Validar(dto.Fecha, dto.Tipo, dto.Detalle);
         if (error is not null) return BadRequest(error);
         Aplicar(a, dto.Fecha, dto.Tipo, dto.Detalle);
